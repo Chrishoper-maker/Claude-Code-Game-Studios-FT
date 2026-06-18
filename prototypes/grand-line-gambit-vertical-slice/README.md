@@ -61,6 +61,16 @@
 
 ---
 
+## Pre-Run Audit（首跑前留痕 — 2026-06-18）
+
+首跑前已做两层离线核查，结论：**脚手架就绪，无已知阻断；唯一未知数为验证条 ② 的实机墙钟。**
+
+- **静态走查**（14 文件 / 1215 行）：信号契约与 `event_bus.gd`（ADR-0001 子集）签名逐一对齐；`class_name` 常量交叉引用无环；核心循环闭合（部署→移动/攻击→充能→引爆→清场→胜负）。
+- **引擎兼容性**（对照 `docs/engine-reference/godot/` breaking-changes / deprecated-apis，2026-02-12 核实，覆盖 4.4–4.6）：
+  - 主动规避 4.6 三大破坏性变更——零物理体（Jolt 默认无关）、未启用 glow（glow-before-tonemap 无关）、无自定义 shader（4.4 纹理类型变更无关）。
+  - API 形式全部非废弃：`Time.get_ticks_msec()`、`signal.connect(callable)`、类型化容器、`await ...timeout`。`StandardMaterial3D` rim/emission、Mesh 图元、`Camera3D` 投影/`look_at`/`project_ray_*`、`roundi()` 均 4.0+ stable。
+  - **F-6 交叉印证**：godot 参考目录中**无任何** Tween / `set_ignore_time_scale` / `TWEEN_PROCESS_IDLE` / `time_scale` 变更记录 → ADR-0008 的 HIGH RISK 属保守标注，该 API 实为 4.0+ stable。验证条 ② 通过即可据此下调 ADR-0008 风险。
+
 ## Findings
 
 _待首次运行后回填。_ 运行通过后将整理为 `REPORT.md` 并更新 `../index.md` 的 Verdict。
