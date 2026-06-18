@@ -12,7 +12,7 @@
 
 | Slice | Date | Path | Verdict | Doc |
 |-------|------|------|---------|-----|
-| 孤帆棋海 — 单场战斗核心循环（部署→凑相邻→充能→相邻爆发→清场） | 2026-06-18 | Godot 4.6.3 | _in-progress（待首次运行）_ | [README.md](grand-line-gambit-vertical-slice/README.md) |
+| 孤帆棋海 — 单场战斗核心循环（部署→凑相邻→充能→相邻爆发→清场） | 2026-06-18 | Godot 4.6.3 | _技术验证 PASS（②time_scale 墙钟 920ms + 整工程冒烟零错）；待试玩手感 ①③④_ | [README.md](grand-line-gambit-vertical-slice/README.md) |
 
 ## Spikes
 

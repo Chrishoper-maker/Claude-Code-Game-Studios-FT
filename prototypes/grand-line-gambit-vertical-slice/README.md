@@ -71,6 +71,16 @@
   - API 形式全部非废弃：`Time.get_ticks_msec()`、`signal.connect(callable)`、类型化容器、`await ...timeout`。`StandardMaterial3D` rim/emission、Mesh 图元、`Camera3D` 投影/`look_at`/`project_ray_*`、`roundi()` 均 4.0+ stable。
   - **F-6 交叉印证**：godot 参考目录中**无任何** Tween / `set_ignore_time_scale` / `TWEEN_PROCESS_IDLE` / `time_scale` 变更记录 → ADR-0008 的 HIGH RISK 属保守标注，该 API 实为 4.0+ stable。验证条 ② 通过即可据此下调 ADR-0008 风险。
 
-## Findings
+## Findings（2026-06-18，Godot 4.6.3 实跑）
 
-_待首次运行后回填。_ 运行通过后将整理为 `REPORT.md` 并更新 `../index.md` 的 Verdict。
+技术验证部分 **PASS**;手感类判据(①③④)仍待人工试玩。
+
+- **验证条 ②（最高风险，ADR-0008）= ✅ PASS。** 无头实测 `set_ignore_time_scale(true)` 在 `Engine.time_scale=0.05` 下墙钟 = **920 ms**（期望≈960 / 若失效≈19200）——离失效值差一个数量级,确证演出 Tween 按墙钟推进。**ADR-0008 的 HIGH RISK 可据此下调**(F-6 同时印证:4.6.3 参考无任何 Tween/PROCESS_IDLE 计时变更)。命令见 `verify_time_scale.gd` 头部。
+- **整工程无头冒烟 = ✅ PASS。** `--quit-after 120` 跑完真实 `battle_controller._ready()`(相机/棋盘/64 格/7 单位/HUD/信号/PLAYER_PHASE 全构建),**零 SCRIPT ERROR、零 warning、退出码 0**。
+- **⚠️ Godot 首次导入陷阱(重要,影响 CI):** 工程从未在编辑器打开时,`.godot/global_script_class_cache.cfg` 未生成 → 所有 `class_name` 全局类型报 "Could not find type"。**无头/CI 运行前必须先跑一次** `godot --headless --import --path <proj>`(或在编辑器打开一次)。`.godot/` 已 gitignore,故每个新 clone 的无头运行都需此步——建 CI 时务必在测试命令前加导入。编辑器内 F5 不受影响(打开即自动导入)。
+
+### 待人工试玩核对（需显示器,无法无头）
+- ① 3–5 min 完成一局且主动触发爆发　③ 震屏精确回弹无漂移　④ 白盒职业/阵营可辨识
+- 在编辑器打开本工程 → F5 → 攻击攒满羁绊槽 → B 选 lead+相邻 partner 触发爆发,看左上 `[VS验证]` 条(in-context 应同样 ≈960ms)。
+
+> 三项手感判据通过后,整理为 `REPORT.md` 并把 `../index.md` Verdict 升为 PROCEED/结论。
