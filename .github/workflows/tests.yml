@@ -1,17 +1,17 @@
-# Godot 单元/集成测试 CI（草案 — B4，待 /test-setup 安装 GUT + 建 tests/ 后正式上膛）
+# 自动化测试 CI —— Godot 4.6.3 + GdUnit4（B4）
 #
 # 设计要点：
 #  • 引擎钉死 Godot 4.6.3（与 docs/engine-reference/godot/VERSION.md 一致）
-#  • 测试框架 = GUT（见 .claude/docs/technical-preferences.md「Framework: GUT」）
-#    注：coding-standards.md:64 旧模板写的是 gdunit4_runner.gd，与权威 technical-preferences
-#    冲突；以 GUT 为准，该行待 /test-setup 一并校正。
+#  • 测试框架 = GdUnit4（见 .claude/docs/technical-preferences.md「Framework: GdUnit4」）
 #  • ★ 必含 `--import` 步骤：CI 每次全新 clone，.godot/（含 global_script_class_cache.cfg）
-#    是 gitignore 的，不先导入则所有 class_name 全局类型报 "Could not find type"。
-#  • Guard：仓库根尚无 project.godot / tests/ 时空跑通过（不报红），/test-setup 建好后自动激活。
+#    是 gitignore 的；不先导入则所有 class_name 全局类型报 "Could not find type"
+#    （vertical-slice 实跑已证实此陷阱，见其 README Findings）。
+#  • Guard：仓库根尚无 project.godot 或未装 addons/gdUnit4 时空跑通过（不报红），就绪后自动激活。
+#  • 原型 prototypes/ 不纳入 CI（prototype-code.md：生产代码不得引用原型）。
 #
 # coding-standards 规则：每次 push main 与每个 PR 运行；测试失败即阻断合并。
 
-name: Godot Tests
+name: Automated Tests
 
 on:
   push:
@@ -21,29 +21,28 @@ on:
 
 env:
   GODOT_VERSION: "4.6.3"
-  # 生产 Godot 工程根（含 project.godot）。当前仓库无根工程——原型在 prototypes/ 内、
-  # 不纳入 CI（prototype-code.md：生产代码不得引用原型）。实现阶段或 /test-setup 建立
-  # 根 project.godot 后，此路径即生效。
   PROJECT_PATH: "."
 
 jobs:
   test:
-    name: "Unit/Integration (GUT · Godot 4.6.3)"
+    name: "GdUnit4 · Godot 4.6.3"
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          lfs: true
 
-      # ── Guard：根工程与 tests/ 都就绪才真正跑测试 ──
+      # ── Guard：根工程 + GdUnit4 都就绪才真正跑 ──
       - name: Detect project readiness
         id: guard
         run: |
-          if [ -f "${PROJECT_PATH}/project.godot" ] && [ -d "${PROJECT_PATH}/tests" ]; then
+          if [ -f "${PROJECT_PATH}/project.godot" ] && [ -d "${PROJECT_PATH}/addons/gdUnit4" ]; then
             echo "ready=true" >> "$GITHUB_OUTPUT"
-            echo "根工程 + tests/ 就绪 → 运行测试。"
+            echo "根 project.godot + addons/gdUnit4 就绪 → 运行测试。"
           else
             echo "ready=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::尚无 ${PROJECT_PATH}/project.godot 或 tests/ —— 测试 CI 待 /test-setup 激活，本次空跑通过（非失败）。"
+            echo "::notice::尚无 ${PROJECT_PATH}/project.godot 或 addons/gdUnit4 —— 测试 CI 待生产工程/GdUnit4 就绪后激活，本次空跑通过（非失败）。"
           fi
 
       - name: Download Godot ${{ env.GODOT_VERSION }} (headless, Linux)
@@ -58,14 +57,13 @@ jobs:
           sudo chmod +x /usr/local/bin/godot
           godot --version
 
-      # ★★ 关键步骤：首次导入，生成 .godot/ + 全局类名缓存 ★★
-      # 缺这步 → class_name 全局全部 "Could not find type"（见 vertical-slice README Findings）。
+      # ★★ 关键：首次导入，生成 .godot/ + 全局类名缓存 ★★
       - name: Import project (build global class cache)
         if: steps.guard.outputs.ready == 'true'
         working-directory: ${{ env.PROJECT_PATH }}
         run: |
           set +e
-          # 首次文件系统扫描偶尔需两遍（资源导入顺序），故跑两次后再判定
+          # 首次文件系统扫描偶尔需两遍（资源导入顺序），跑两次后判定
           godot --headless --import 2>&1 | tee import.log
           godot --headless --import 2>&1 | tee -a import.log
           if grep -q "Could not find type" import.log; then
@@ -74,14 +72,21 @@ jobs:
           fi
           echo "Import OK — global class cache built."
 
-      - name: Run GUT tests (headless)
+      - name: Run GdUnit4 tests (headless)
         if: steps.guard.outputs.ready == 'true'
         working-directory: ${{ env.PROJECT_PATH }}
         run: |
           set -euo pipefail
-          # GUT 9.x（Godot 4）命令行；需 /test-setup 先安装 addons/gut/。
-          # -gexit 跑完退出，失败时返回非零退出码 → 阻断合并。
-          godot --headless -s addons/gut/gut_cmdln.gd \
-            -gdir=res://tests \
-            -ginclude_subdirs \
-            -gexit
+          # GdUnit4 官方命令行；--continue 跑完全部再汇总，失败返回非零退出码 → 阻断合并。
+          godot --headless -s res://addons/gdUnit4/bin/GdUnitCmdTool.gd \
+            --continue \
+            -a res://tests/unit \
+            -a res://tests/integration
+
+      - name: Upload test report
+        if: always() && steps.guard.outputs.ready == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: gdunit4-report
+          path: ${{ env.PROJECT_PATH }}/reports/
+          if-no-files-found: ignore

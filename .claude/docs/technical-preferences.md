@@ -40,7 +40,7 @@
 
 ## Testing
 
-- **Framework**: GUT (Godot Unit Test) — 安装与脚手架由 /test-setup 执行
+- **Framework**: GdUnit4 — 经 AssetLib 安装到 `addons/gdUnit4/`；脚手架与 CI 由 /test-setup 生成（2026-06-18 定，与 /test-setup 技能本体及 coding-standards 一致）
 - **Minimum Coverage**: 逻辑系统（羁绊效果矩阵、伤害公式、回合状态机）必须有单元测试；覆盖率目标 70%
 - **Required Tests**: Balance formulas, gameplay systems, networking (if applicable — 本作无网络)
 

@@ -61,6 +61,6 @@ All stories must have appropriate test evidence before they can be marked Done:
 - No merge if tests fail — tests are a blocking gate in CI
 - Never disable or skip failing tests to make CI pass — fix the underlying issue
 - Engine-specific CI commands:
-  - **Godot**: `godot --headless --script tests/gdunit4_runner.gd`
+  - **Godot**: `godot --headless --import` 然后 `godot --headless -s res://addons/gdUnit4/bin/GdUnitCmdTool.gd --continue -a res://tests`（GdUnit4；必先 --import 建全局类名缓存）
   - **Unity**: `game-ci/unity-test-runner@v4` (GitHub Actions)
   - **Unreal**: headless runner with `-nullrhi` flag
