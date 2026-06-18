@@ -2,10 +2,10 @@
 
 | Field | Value |
 |-------|-------|
-| **Engine Version** | Godot 4.6 |
-| **Release Date** | January 2026 |
-| **Project Pinned** | 2026-02-12 |
-| **Last Docs Verified** | 2026-02-12 |
+| **Engine Version** | Godot 4.6.3 |
+| **Release Date** | May 20, 2026 (4.6.3 maintenance release; 4.6.0 January 2026) |
+| **Project Pinned** | 2026-06-13 |
+| **Last Docs Verified** | 2026-06-13 |
 | **LLM Knowledge Cutoff** | May 2025 |
 
 ## Knowledge Gap Warning
@@ -21,6 +21,7 @@ Always cross-reference this directory before suggesting Godot API calls.
 | 4.4 | ~Mid 2025 | MEDIUM | Jolt physics option, FileAccess return types, shader texture type changes |
 | 4.5 | ~Late 2025 | HIGH | Accessibility (AccessKit), variadic args, @abstract, shader baker, SMAA |
 | 4.6 | Jan 2026 | HIGH | Jolt default, glow rework, D3D12 default on Windows, IK restored |
+| 4.7 | RC as of Jun 2026 | — | Not yet stable — do NOT target until released and re-verified |
 
 ## Verified Sources
 

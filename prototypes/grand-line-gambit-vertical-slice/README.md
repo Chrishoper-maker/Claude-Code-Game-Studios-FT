@@ -1,0 +1,66 @@
+# Vertical Slice: 孤帆棋海 (Grand Line Gambit) — 单场战斗核心循环
+
+> **Date**: 2026-06-18
+> **Engine**: Godot 4.6.3（Forward+ / D3D12）
+> **Status**: 🟡 in-progress — 脚手架已成型，待首次在 Godot 中运行 + 报错迭代
+> **Concept verdict**: [概念原型 PROCEED](../grand-line-gambit-concept/REPORT.md)
+
+---
+
+## Hypothesis（验证问题）
+
+新玩家在 ~3 分钟内、无引导即可触发一次"相邻爆发"（定格 + 分镜横幅 + 震屏），
+并感到"伙伴并肩 = 战术热血回报"——**同时**验证 ADR-0006~0009 在真实 Godot 4.6.3
+中能落地，尤其是最高风险的 `set_ignore_time_scale` 墙钟计时（ADR-0008）。
+
+## Riskiest Assumption（最高风险假设）
+
+`set_ignore_time_scale(true)` 在 Godot 4.6.3 中能让演出 Tween 按**墙钟**推进，
+不被 `Engine.time_scale = 0.05`（世界定格）拖慢 20×。
+→ 若失效，整个"世界定格 / 演出照常播"的爆发演出方案需走 ADR-0008 回退方案 2。
+
+---
+
+## How to Run
+
+1. Godot 4.6.3 打开本目录（`project.godot`），或在编辑器中 Import 此文件夹。
+2. F5 运行（主场景 `scenes/Main.tscn`）。
+3. 操作：
+   - **点击**己方船员选中 → 青色格 = 可移动，红色格 = 可攻击的敌人。
+   - 凑相邻（八向切比雪夫=1）攻击：+1 伤害、+2 充能（单独 +1）。
+   - 羁绊槽满 10 → 按 **B**（或点"羁绊爆发"）→ 点 lead 船员 → 点相邻 partner → 触发爆发。
+   - **Space** = 结束回合（敌方 MELEE 贪心逼近，意图在 HUD 明示）。
+   - 目标：清空 3 名敌人即胜利（回合上限 8）。
+
+## 范围（Scope A）
+
+- 1×8×8 地图 / 4 白盒船员（剑×2 + 炮 + 铁壁）/ 3 近战敌（明示意图）
+- 共享羁绊槽 10 / 2 个爆发组合（剑剑=6、剑炮=5，其余 generic=4）
+- 架构落地：EventBus(0001) + GridCoordMapper(0006) + UnitView(0007)
+  + BurstPresentation unscaled(0008) + CameraShake(0009) + enum 状态机(0004)
+
+### 范围切（deferred，非本切片验证目标）
+
+- **ADR-0003 .tres 目录扫描管线** → 降级为代码内 `UnitDefinition` 实例化（`battle_controller._def()`）。
+- 无音频 / 无存档 / 无关卡数据 / 美术为白盒图元（art-bible §4 配色 + 职业形状区分）。
+- 单一 MELEE 敌人行为原型；无招募 / 无路线 / 无地形效果。
+
+---
+
+## Validation Checklist（运行时逐项核对）
+
+| # | 成功判据 | 怎么看 |
+|---|----------|--------|
+| ① | 3–5 min 完成一局且**主动**触发爆发 | 实际试玩计时 |
+| ② | `set_ignore_time_scale` 按墙钟（P1 不被 20× 拉长） | 看屏幕左上 `[VS验证]` 调试条 / 控制台 print：P1→P4 墙钟应 **≈960 ms**，失效则 ≈19200 ms |
+| ③ | 震屏精确回弹、无累积漂移 | 爆发后相机回到原位，无偏移残留 |
+| ④ | 白盒单位可辨识（职业 + 阵营冷暖） | 剑=红箱 / 炮=橙柱 / 铁壁=青箱；敌方压暗 + 冷 rim |
+
+> ⚠️ ADR-0008 标注 `set_ignore_time_scale` 为编码前 Verification Required——判据 ②
+> 即为该实测。引擎参考未佐证"4.5 Tween PROCESS_IDLE 变化"，若 ② 通过可据此下调 ADR-0008 风险。
+
+---
+
+## Findings
+
+_待首次运行后回填。_ 运行通过后将整理为 `REPORT.md` 并更新 `../index.md` 的 Verdict。

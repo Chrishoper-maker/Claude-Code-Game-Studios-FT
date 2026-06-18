@@ -37,7 +37,7 @@
 #   Each entry: name, status, source, referenced_by[], attributes{}, added, revised
 
 version: 1
-last_updated: ""
+last_updated: "2026-06-17"  # /consistency-check: BOND_GAUGE_MAX 新增；ISLAND_COUNT_MAX [4,6]→[4,7] 修正
 
 # ─── ENTITIES ────────────────────────────────────────────────────────────────
 # Named game-world objects: enemies, NPCs, characters, factions, bosses.
@@ -48,25 +48,24 @@ last_updated: ""
 # Attribute fields: any key stats that could appear in another GDD
 #   (health, damage, drops, faction, etc.)
 
-entities: []
-
-# Example (remove when first real entry is added):
-#
-# entities:
-#   - name: goblin
-#     status: active              # active | deprecated
-#     source: design/gdd/combat.md
-#     referenced_by:
-#       - design/gdd/combat.md
-#       - design/gdd/inventory.md
-#     health: 40
-#     damage: 8
-#     drops:
-#       - item: goblin_arm        # must match an entry in items section
-#         qty: 1
-#         drop_rate: 0.8          # 0.0–1.0
-#     added: 2026-03-26
-#     revised: ""
+entities:
+  - name: unit_class_enum
+    status: active
+    source: design/gdd/unit-data-system.md
+    referenced_by:
+      - design/gdd/unit-data-system.md
+      - design/gdd/battle-resolution-system.md   # 动词效果与炮手最小射程规则依赖此枚举
+    members:
+      - swordsman   # 剑豪·斩 — 伤害锁定 3
+      - gunner      # 炮手·轰 — 伤害锁定 3（远程身份硬约束）
+      - bulwark     # 铁壁·挡
+      - medic       # 医师·愈 — 伤害锁定 1，HP 下限 8
+      - navigator   # 航海士·移
+      - musician    # 乐手·奏 — action_weight 1.5（光环）
+    notes: "六职业枚举与数值倾向带归 unit-data-system.md；动词效果归战斗解算 GDD。
+      新增成员须同步 CLASS_COUNT 并重走 GDD 评审。"
+    added: 2026-06-13
+    revised: ""
 
 
 # ─── ITEMS ───────────────────────────────────────────────────────────────────
@@ -106,7 +105,89 @@ items: []
 #   output_range[min, max], added
 # Optional: expression (the actual formula), notes
 
-formulas: []
+formulas:
+  - name: power_score
+    status: active
+    source: design/gdd/unit-data-system.md
+    referenced_by:
+      - design/gdd/unit-data-system.md
+      - design/gdd/battle-resolution-system.md   # Formula 4 最终化 action_weight 标定
+    variables:
+      - max_hp
+      - base_damage
+      - attack_range
+      - move_range
+      - action_weight
+    output_range: [4, 26]
+    expression: "max_hp * 0.5 + base_damage * 2 + attack_range * 1 + move_range * 1 + action_weight * 2"
+    notes: "船员强度带 13–16（带外 = 加载平衡告警，不阻断）。systems-designer 复核
+      ENDORSE WITH CHANGES（2026-06-13）。action_weight 最终标定由 battle-resolution-system.md
+      Formula 4 定稿（2026-06-13）：斩/轰=0，挡=1，奏=1.5，愈/移=2。
+      已知局限：公式层面航海士严格压制医师——医师效力须由战斗解算 GDD 的独立指标校验。
+      开发期指标，不向玩家展示。"
+    added: 2026-06-13
+    revised: "2026-06-13"  # action_weight provisional → finalized by battle-resolution GDD
+
+  - name: final_damage
+    status: active
+    source: design/gdd/battle-resolution-system.md
+    referenced_by:
+      - design/gdd/battle-resolution-system.md
+    variables:
+      - base_damage
+      - modifier_sum
+      - AURA_VALUE
+      - GUARD_DIVISOR
+    output_range: [0, 6]
+    expression: "min(Σmodifiers, MAX_MODIFIER_SUM=2) + base_damage + (AURA_VALUE if AURA_BONUS); GUARDED: floor(result/GUARD_DIVISOR)"
+    notes: "output_range 上限 6 = base_damage(3) + MAX_MODIFIER_SUM(2) + AURA_VALUE(1)。
+      GUARDED 后最小为 0（floor(1/2)=0，设计意图）。modifier_sum 上限须相邻羁绊 GDD 确认。"
+    added: 2026-06-13
+    revised: ""
+
+  - name: heal_result
+    status: active
+    source: design/gdd/battle-resolution-system.md
+    referenced_by:
+      - design/gdd/battle-resolution-system.md
+    variables:
+      - current_hp
+      - HEAL_AMOUNT
+      - max_hp
+    output_range: [1, 12]
+    expression: "min(current_hp + HEAL_AMOUNT, max_hp); precondition: current_hp > 0"
+    notes: "前提 current_hp>0 由 Rule 6 的目标合法性检查保证（Downed 单位不可治疗）。"
+    added: 2026-06-13
+    revised: ""
+
+  - name: guard_damage_reduction
+    status: active
+    source: design/gdd/battle-resolution-system.md
+    referenced_by:
+      - design/gdd/battle-resolution-system.md
+    variables:
+      - final_damage
+      - GUARD_DIVISOR
+    output_range: [0, "N/2"]
+    expression: "max(0, floor(final_damage / GUARD_DIVISOR))"
+    notes: "GUARD_DIVISOR=2（基线）。0 伤结果（floor(1/2)=0）是设计意图——GUARDED 仍消耗。"
+    added: 2026-06-13
+    revised: ""
+
+  - name: enemy_power_band
+    status: active
+    source: design/gdd/unit-data-system.md
+    referenced_by:
+      - design/gdd/unit-data-system.md
+    variables:
+      - threat_tier
+    output_range: [9, 15]
+    expression: "10 + 2 * (tier - 1), 容差 ±1（tier 1–3，MVP）"
+    notes: "远程身份保护约束随附：tier<=2 敌 move_range<=2；move=3 快速敌仅限
+      tier 2+ 且 max_hp<=6；tier 3 的 move=3 敌须 max_hp<=8 且 attack_range<=1。
+      两发击杀保证以炮手伤害锁定 3 为前提。"
+    added: 2026-06-13
+    revised: ""
 
 # Example:
 #
@@ -139,7 +220,197 @@ formulas: []
 #
 # Required fields: name, status, source, referenced_by, value, unit, added
 
-constants: []
+constants:
+  - name: MAX_CREW
+    status: active
+    source: design/gdd/unit-data-system.md
+    referenced_by:
+      - design/gdd/unit-data-system.md
+      - design/gdd/game-concept.md   # 反支柱：船员永不超过 8
+    value: 8
+    unit: 船员
+    added: 2026-06-13
+    revised: ""
+
+  - name: CLASS_COUNT
+    status: active
+    source: design/gdd/unit-data-system.md
+    referenced_by:
+      - design/gdd/unit-data-system.md
+    value: 6
+    unit: 职业
+    added: 2026-06-13
+    revised: ""
+
+  - name: DEPLOY_LIMIT
+    status: active
+    source: design/gdd/unit-data-system.md
+    referenced_by:
+      - design/gdd/unit-data-system.md
+    value: 4
+    unit: 上场单位/场
+    added: 2026-06-13
+    revised: ""
+
+  - name: STARTING_CREW
+    status: active
+    source: design/gdd/unit-data-system.md
+    referenced_by:
+      - design/gdd/unit-data-system.md
+      - design/gdd/game-concept.md   # 2 人起航（2026-06-13 用户拍板）
+    value: 2
+    unit: 船员
+    added: 2026-06-13
+    revised: ""
+
+  - name: crew_power_band
+    status: active
+    source: design/gdd/unit-data-system.md
+    referenced_by:
+      - design/gdd/unit-data-system.md
+    value: "13–16"
+    unit: power_score
+    added: 2026-06-13
+    revised: ""
+
+  - name: ROUND_LIMIT
+    status: active
+    source: design/gdd/turn-management-system.md
+    referenced_by:
+      - design/gdd/turn-management-system.md
+    value: 8
+    unit: 轮次/场
+    notes: "失败条件上限。推荐基线值 8，安全范围 [5,12]；垂直切片阶段用真实职业数据校准。"
+    added: 2026-06-13
+    revised: ""
+
+  - name: HEAL_AMOUNT
+    status: active
+    source: design/gdd/battle-resolution-system.md
+    referenced_by:
+      - design/gdd/battle-resolution-system.md
+    value: 3
+    unit: HP/次
+    notes: "医师·愈的每次治疗量。可调旋钮，安全范围 1–6。
+      action_weight=2 的定价依据为此绝对值，若大幅下调须重算 power_score。"
+    added: 2026-06-13
+    revised: ""
+
+  - name: GUARD_DIVISOR
+    status: active
+    source: design/gdd/battle-resolution-system.md
+    referenced_by:
+      - design/gdd/battle-resolution-system.md
+    value: 2
+    unit: 除数（无单位）
+    notes: "铁壁·挡减伤公式的除数。floor(dmg/2)。安全范围 2–4。"
+    added: 2026-06-13
+    revised: ""
+
+  - name: GUNNER_MIN_RANGE
+    status: active
+    source: design/gdd/battle-resolution-system.md
+    referenced_by:
+      - design/gdd/battle-resolution-system.md
+    value: 2
+    unit: 曼哈顿距离（格）
+    notes: "炮手普通攻击最小曼哈顿距离。低于此值则攻击被拒绝。职业动词·轰不受此约束。"
+    added: 2026-06-13
+    revised: ""
+
+  - name: PUSH_DISTANCE
+    status: active
+    source: design/gdd/battle-resolution-system.md
+    referenced_by:
+      - design/gdd/battle-resolution-system.md
+    value: 2
+    unit: 格
+    notes: "航海士·移的最大位移格数。实际位移 actual_distance ∈ [0, PUSH_DISTANCE]。"
+    added: 2026-06-13
+    revised: ""
+
+  - name: AURA_VALUE
+    status: active
+    source: design/gdd/battle-resolution-system.md
+    referenced_by:
+      - design/gdd/battle-resolution-system.md
+    value: 1
+    unit: 伤害/次
+    notes: "乐手·奏的光环每次攻击加伤。安全范围 1–2（2 搭配 MAX_MODIFIER_SUM=2 须验证不破坏两发击杀保证）。"
+    added: 2026-06-13
+    revised: ""
+
+  - name: MAX_MODIFIER_SUM
+    status: active
+    source: design/gdd/battle-resolution-system.md
+    referenced_by:
+      - design/gdd/battle-resolution-system.md
+      - design/gdd/adjacency-bond-system.md   # BOND_ELITE=2 = MAX_MODIFIER_SUM（已在 Formulas 中确认）
+    value: 2
+    unit: 伤害（单次攻击上限）
+    notes: "相邻羁绊系统单次攻击最大注入修正值。高危旋钮——调高可能破坏两发击杀保证。
+      adjacency-bond-system.md 已确认 BOND_ELITE=2=MAX_MODIFIER_SUM（精英配对单伙伴即封顶）。"
+    added: 2026-06-13
+    revised: "2026-06-14"   # referenced_by 添加 adjacency-bond-system.md
+
+  - name: BOND_BASE
+    status: active
+    source: design/gdd/adjacency-bond-system.md
+    referenced_by:
+      - design/gdd/adjacency-bond-system.md
+    value: 1
+    unit: 伤害修正器/通用配对
+    notes: "任意相邻友方的通用羁绊加成值。安全范围 0–2。
+      调至 2 则等同 MAX_MODIFIER_SUM，1 名普通友方即封顶，削减 BOND_ELITE 差异化价值。"
+    added: 2026-06-14
+    revised: ""
+
+  - name: BOND_ELITE
+    status: active
+    source: design/gdd/adjacency-bond-system.md
+    referenced_by:
+      - design/gdd/adjacency-bond-system.md
+    value: 2
+    unit: 伤害修正器/精英配对
+    notes: "精英职业配对（6 对）的羁绊加成值。须 ≥ BOND_BASE。当前值 = MAX_MODIFIER_SUM，
+      单名精英伙伴即封顶修正器上限。安全范围 1–3（调至 3 则超过上限，截断后等同 2）。"
+    added: 2026-06-14
+    revised: ""
+
+  - name: ISLAND_COUNT_MAX
+    status: active
+    source: design/gdd/route-recruitment-system.md
+    referenced_by:
+      - design/gdd/route-recruitment-system.md
+    value: 5
+    unit: 岛屿/run
+    notes: "一次 run 的总岛屿数（含末岛头目战）。垂直切片阶段基线值 5（4 次招募机会）；Full Vision 目标 7（满足 STARTING_CREW=2+6次招募=MAX_CREW=8）。安全范围 [4,7]。"
+    added: 2026-06-17
+    revised: ""
+
+  - name: RECRUIT_OFFER_COUNT
+    status: active
+    source: design/gdd/route-recruitment-system.md
+    referenced_by:
+      - design/gdd/route-recruitment-system.md
+    value: 3
+    unit: 候选/次招募
+    notes: "每次招募阶段展示的候选船员数量（三选一）。安全范围 [2,4]；=2 选择感弱；=4 分析瘫痪风险。"
+    added: 2026-06-17
+    revised: ""
+
+  - name: BOND_GAUGE_MAX
+    status: active
+    source: design/gdd/bond-gauge-burst-system.md
+    referenced_by:
+      - design/gdd/bond-gauge-burst-system.md
+      - design/gdd/battle-hud-system.md   # gauge_fill_ratio = bond_gauge_current / BOND_GAUGE_MAX
+    value: 10
+    unit: 充能点
+    notes: "羁绊槽满槽值（原型验证值）。安全范围 [5, 20]；垂直切片阶段以真实职业/关卡数据校准。
+      battle-hud-system 只读引用此值渲染槽条填充比例——调整须两 GDD 同步。"
+    added: 2026-06-17
+    revised: ""
 
 # Example:
 #

@@ -30,7 +30,7 @@
 #   Superseded entries:     Grep pattern="status: superseded"
 
 version: 1
-last_updated: ""
+last_updated: "2026-06-18"  # ADR-0009 added camera_shake_pixel_conversion api + camera_shake_global_transform_or_random forbidden pattern
 
 # ─── STATE OWNERSHIP ─────────────────────────────────────────────────────────
 # Who is the authoritative owner of each piece of shared game state.
@@ -43,7 +43,50 @@ last_updated: ""
 # interface: how other systems access this state (read-only property, method call,
 #   signal, shared resource, etc.) — this is the contract other ADRs depend on.
 
-state_ownership: []
+state_ownership:
+  - state: run_current_phase
+    status: active
+    owner_system: route-recruitment-system (RunManager)
+    adr: docs/architecture/adr-0002-scene-architecture.md
+    interface: "RunManager.current_phase (read-only String — 'BATTLE'/'RECRUITING'/'DEPLOYING'/'RUN_END')"
+    write_access: RunManager-only
+    referenced_by:
+      - docs/architecture/adr-0002-scene-architecture.md
+    added: "2026-06-18"
+    revised: ""
+
+  - state: run_current_island_index
+    status: active
+    owner_system: route-recruitment-system (RunManager)
+    adr: docs/architecture/adr-0002-scene-architecture.md
+    interface: "RunManager.current_island_index (read-only int — 0-based island index)"
+    write_access: RunManager-only
+    referenced_by:
+      - docs/architecture/adr-0002-scene-architecture.md
+    added: "2026-06-18"
+    revised: ""
+
+  - state: unit_definitions_cache
+    status: active
+    owner_system: unit-data-system (UnitDataManager autoload)
+    adr: docs/architecture/adr-0003-data-loading-strategy.md
+    interface: "UnitDataManager.get_unit(id: String) -> UnitDefinition (read-only; null if unknown id) | UnitDataManager.get_all_units() -> Array[UnitDefinition] (empty array if load failed)"
+    write_access: UnitDataManager-only (populated once at _ready(); never modified at runtime)
+    referenced_by:
+      - docs/architecture/adr-0003-data-loading-strategy.md
+    added: "2026-06-18"
+    revised: ""
+
+  - state: map_definitions_cache
+    status: active
+    owner_system: battle-map-system (MapDataManager autoload)
+    adr: docs/architecture/adr-0003-data-loading-strategy.md
+    interface: "MapDataManager.get_map(map_id: String) -> MapDefinition (read-only; null if unknown id) | MapDataManager.get_maps_for_tier(island_tier: int) -> Array[MapDefinition]"
+    write_access: MapDataManager-only (populated once at _ready(); never modified at runtime)
+    referenced_by:
+      - docs/architecture/adr-0003-data-loading-strategy.md
+    added: "2026-06-18"
+    revised: ""
 
 # Example:
 #
@@ -71,7 +114,79 @@ state_ownership: []
 #
 # pattern options: signal | direct_call | event_bus | shared_resource | rpc | none
 
-interfaces: []
+interfaces:
+  - contract: cross_system_signal_routing
+    status: active
+    pattern: event_bus
+    producer: any_system
+    consumers:
+      - any_system
+    adr: docs/architecture/adr-0001-eventbus-architecture.md
+    signal_hub: "EventBus autoload (src/autoloads/event_bus.gd) — 全部信号静态定义于此文件"
+    usage: "subscribe: EventBus.signal_name.connect(callable) | emit: EventBus.signal_name.emit(args)"
+    referenced_by:
+      - docs/architecture/adr-0001-eventbus-architecture.md
+    added: "2026-06-17"
+    revised: ""
+
+  - contract: scene_transition
+    status: active
+    pattern: direct_call
+    producer: route-recruitment-system (RunManager)
+    consumers:
+      - SceneManager
+    adr: docs/architecture/adr-0002-scene-architecture.md
+    usage: "RunManager 先 emit run_phase_changed，再调用 SceneManager.goto_battle() 或 SceneManager.goto_route()"
+    referenced_by:
+      - docs/architecture/adr-0002-scene-architecture.md
+    added: "2026-06-18"
+    revised: ""
+
+  - contract: new_scene_initialization
+    status: active
+    pattern: state_polling
+    producer: route-recruitment-system (RunManager)
+    consumers:
+      - RouteRecruitUI
+      - any scene node that depends on run phase
+    adr: docs/architecture/adr-0002-scene-architecture.md
+    usage: "新加载场景节点在 _ready() 中必须调用 _on_run_phase_changed(RunManager.current_phase) 初始化状态，不可依赖捕获已发射的 run_phase_changed 信号"
+    referenced_by:
+      - docs/architecture/adr-0002-scene-architecture.md
+    added: "2026-06-18"
+    revised: ""
+
+  - contract: grid_coord_mapping
+    status: active
+    pattern: direct_call
+    producer: GridCoordMapper (src/systems/board/grid_coord_mapper.gd)
+    consumers:
+      - any_system  # 全部需要 3D 世界坐标的系统
+    adr: docs/architecture/adr-0006-3d-board-rendering.md
+    usage: "坐标转换：GridCoordMapper.grid_to_world(Vector2i) → Vector3 | GridCoordMapper.world_to_grid(Vector3) → Vector2i。全项目唯一坐标转换接口，不得内联实现。"
+    referenced_by:
+      - docs/architecture/adr-0006-3d-board-rendering.md
+    added: "2026-06-18"
+    revised: ""
+
+  - contract: unit_visual_node
+    status: active
+    pattern: direct_call
+    producer: UnitLayer (src/systems/board/unit_layer.gd)
+    consumers:
+      - any_system  # 全部需要单位视觉的系统（战斗、HUD、招募/部署预览、爆发演出）
+    adr: docs/architecture/adr-0007-unit-rendering.md
+    usage: "单位视觉唯一节点契约：UnitView（Node3D）= 一个 UnitInstance 的 3D 呈现。
+      UnitView.setup(unit_def: UnitDefinition, grid_pos: Vector2i) -> void |
+      UnitView.move_to(grid_pos: Vector2i) -> void |
+      UnitView.set_downed() -> void |
+      UnitLayer.spawn_view(unit_def, grid_pos) -> UnitView |
+      UnitLayer.get_view(unit_id: String) -> UnitView（未知 id 返回 null）。
+      单位位置全程经 GridCoordMapper.grid_to_world()；拾取经 world_to_grid() + GridBoard 占用查询，零物理体。"
+    referenced_by:
+      - docs/architecture/adr-0007-unit-rendering.md
+    added: "2026-06-18"
+    revised: ""
 
 # Example:
 #
@@ -131,7 +246,84 @@ performance_budgets: []
 # Register an API decision when the choice is non-obvious and other ADRs might
 # make a different choice for the same purpose without knowing this was decided.
 
-api_decisions: []
+api_decisions:
+  - purpose: signal_dispatch
+    status: active
+    api: "Signal.emit(args) / Signal.connect(callable)  — 类型化 Signal 对象直接调用"
+    not: "emit_signal(StringName, ...) / connect(StringName, ...) — 字符串式调用（Godot 4 deprecated）"
+    adr: docs/architecture/adr-0001-eventbus-architecture.md
+    reason: "类型安全、IDE 自动补全、Godot 4.x 官方推荐模式；字符串式已被标记为 legacy"
+    referenced_by:
+      - docs/architecture/adr-0001-eventbus-architecture.md
+    added: "2026-06-17"
+    revised: ""
+
+  - purpose: scene_switching
+    status: active
+    api: "SceneTree.change_scene_to_packed(PackedScene) — 预加载 PackedScene，通过 @export var 赋值"
+    not: "change_scene_to_file(String path) — 字符串路径在重构时不安全；change_scene（Godot 3 API，已废弃）"
+    adr: docs/architecture/adr-0002-scene-architecture.md
+    reason: "PackedScene 预加载避免运行时 IO 延迟；@export var 引用在编辑器中可验证；字符串路径在文件移动后静默失效"
+    referenced_by:
+      - docs/architecture/adr-0002-scene-architecture.md
+    added: "2026-06-18"
+    revised: ""
+
+  - purpose: game_data_format
+    status: active
+    api: "Godot Custom Resource (.tres) + DirAccess 目录扫描 — 数据类 extends Resource，@export 字段，存于 res://assets/data/[type]/ 目录，autoload 启动时自动扫描加载"
+    not: "JSON + FileAccess（无类型安全，需手写解析器）; @export var 数组手动 Inspector 赋值（违反数据驱动原则，每新增单位须改 Inspector）; preload() 硬编码路径（每新增文件须改代码）"
+    adr: docs/architecture/adr-0003-data-loading-strategy.md
+    reason: "类型安全 + 编辑器集成 + 完全数据驱动（新增单位/地图仅需新建 .tres 文件，无需改代码或 Inspector）；关闭 unit-data-system GDD Open Question #4"
+    referenced_by:
+      - docs/architecture/adr-0003-data-loading-strategy.md
+    added: "2026-06-18"
+    revised: ""
+
+  - purpose: gdscript_state_machine
+    status: active
+    api: "GDScript enum + match + 私有 _set_[machine](new_state) 转换方法 — 状态定义为 enum，唯一转换入口为私有方法（含终态守卫），进入回调用 match 分派 EventBus 信号；参数化状态通过伴随变量 + 专用 setter 处理"
+    not: "字符串常量 + if-else 链（无编译期类型检查）; Node 子节点状态机（autoload 中无必要 Node 开销）; 每状态独立 GDScript 类文件（状态对象模式——本项目状态逻辑过于简单，不值得此开销）"
+    adr: docs/architecture/adr-0004-gdscript-state-machine-pattern.md
+    reason: "GDScript 4.x 惯用模式；类型安全（拼写错误为编译错误）；可测试（_set_[machine]() 可直接在 GUT 中调用）；TurnManager / RunManager / BattleMapSystem 三套状态机统一约定，降低认知开销"
+    referenced_by:
+      - docs/architecture/adr-0004-gdscript-state-machine-pattern.md
+    added: "2026-06-18"
+    revised: ""
+
+  - purpose: board_rendering_camera
+    status: active
+    api: "Camera3D.PROJECTION_PERSPECTIVE，fov=60，position≈Vector3(7,16,22)，look_at 棋盘中心(7,0,7) — 固定透视高视角，约 55° 仰角俯视 8×8 棋盘；CELL_SIZE=2.0 世界单位/格；棋盘在 XZ 平面（Y=0），col→X，row→Z"
+    not: "Camera3D.PROJECTION_ORTHOGONAL（正交等轴测/直顶）; 动态切换相机投影模式; CELL_SIZE 硬编码于各系统（须调用 GridCoordMapper）"
+    adr: docs/architecture/adr-0006-3d-board-rendering.md
+    reason: "透视相机提供 3D 立体感，爆发演出可通过 Tween 缩放；CELL_SIZE=2.0 为低模单位提供足够展示空间；XZ 平面与 Godot Forward+ 的 Y-up 坐标系对齐"
+    referenced_by:
+      - docs/architecture/adr-0006-3d-board-rendering.md
+    added: "2026-06-18"
+    revised: ""
+
+  - purpose: burst_presentation_timing
+    status: active
+    api: "演出阶段 Tween 用 create_tween().set_ignore_time_scale(true).set_process_mode(Tween.TWEEN_PROCESS_IDLE) 走 unscaled 墙钟；游戏世界（棋盘/单位移动 Tween/环境动画）保持 scaled（默认），FREEZE 期由 Engine.time_scale=clamp(BURST_TIME_SCALE_FREEZE,0.01,…) 减速形成定格背景；P4 末恢复 Engine.time_scale=1.0"
+    not: "演出 Tween 走 scaled（会被 time_scale=0.05 拉长 20× 导致 P1 时序崩坏）；用 get_tree().paused 全暂停替代慢动作；不钳制 BURST_TIME_SCALE_FREEZE 下限（≤0 致 P1 死锁）"
+    adr: docs/architecture/adr-0008-burst-presentation-timing.md
+    reason: "世界慢动作（0.05×）与演出真实墙钟计时须并存；set_ignore_time_scale 让演出 Tween 不受 time_scale 影响。注：该 API 的 4.6.3 确切行为为 HIGH RISK 验证项，不符则回退自管 unscaled delta 控制器（ADR-0008 Alternative 2）"
+    referenced_by:
+      - docs/architecture/adr-0008-burst-presentation-timing.md
+    added: "2026-06-18"
+    revised: ""
+
+  - purpose: camera_shake_pixel_conversion
+    status: active
+    api: "相机震动强度 pixel→世界单位换算：world_per_pixel = (2·distance·tan(fov_vertical/2)) / viewport_height（distance=相机到 look_at 目标实时距离，fov=Camera3D.fov 垂直视角）。震动机制 = Tween 对 Camera3D.position 施加衰减往复偏移，偏移经 transform.basis 在视图局部空间施加（不改 look_at 朝向），末段精确回弹 rest position"
+    not: "修改 Camera3D.global_transform 做震动；随机/噪声偏移（确定性往复波形）；硬编码 distance（须实时 global_position.distance_to）；以世界单位重定义 BURST_CAMERA_SHAKE_INTENSITY（保留 pixel 语义）"
+    adr: docs/architecture/adr-0009-camera-shake.md
+    reason: "pixel 语义对美术直观且与分辨率解耦；FOV+深度换算单点封装；Tween 往复确定可测，符合项目无随机偏好；继承 ADR-0008 unscaled 计时基线"
+    referenced_by:
+      - docs/architecture/adr-0009-camera-shake.md
+      - docs/architecture/adr-0006-3d-board-rendering.md
+    added: "2026-06-18"
+    revised: ""
 
 # Example:
 #
@@ -157,7 +349,107 @@ api_decisions: []
 # Register a pattern when an ADR explicitly bans it AND other ADRs might
 # unknowingly use it (i.e., it's a tempting but wrong approach for this project).
 
-forbidden_patterns: []
+forbidden_patterns:
+  - pattern: direct_cross_system_node_reference
+    status: active
+    description: "系统不得用 @onready var 持有其他游戏系统节点的直接引用。
+      跨系统通信必须通过 EventBus（信号订阅/发射）或通过公开 API 方法调用。"
+    exception: "AdjacencyBond 直接调用 BattleResolution.register_attack_modifier() 是唯一
+      允许的例外——单向功能注入，不构成循环依赖，已在 ADR-0001 明确记录。"
+    why: "直接节点引用在场景重载时失效；Presentation 层持有 Core 层引用会导致跨层循环依赖。"
+    adr: docs/architecture/adr-0001-eventbus-architecture.md
+    added: "2026-06-17"
+
+  - pattern: run_phase_changed_non_runmanager_emit
+    status: active
+    description: "run_phase_changed 信号只能由 RunManager（route-recruitment-system）发射。
+      SceneManager、TurnManager、BattleHUD 等其他系统不得发射此信号。"
+    exception: "无。"
+    why: "run_phase_changed 代表 run 状态机的状态转换，RunManager 是 run 状态的唯一权威持有者（single source of truth）。
+      由其他系统发射会导致信号发射方与状态持有方不一致，破坏 run_current_phase 的 state_ownership 契约。"
+    adr: docs/architecture/adr-0002-scene-architecture.md
+    added: "2026-06-18"
+
+  - pattern: runtime_unit_definition_mutation
+    status: active
+    description: "UnitDefinition（及其子类 CrewDefinition / EnemyDefinition）资源在运行时不得被修改。
+      所有运行时可变状态（current_hp、grid_position、has_moved、has_acted、has_used_verb、is_alive）
+      必须保存在独立的 UnitInstance 对象中，不得写回 UnitDefinition 模板资源。
+      Resource.duplicate_deep() 不应用于创建运行时副本——使用 UnitInstance 模式代替。"
+    exception: "无。UnitDefinition 资源是不可变的事实源（source of truth），多个 UnitInstance 共享同一模板是设计意图。"
+    why: "UnitDefinition 资源被 UnitDataManager 缓存并被所有消费系统共享引用。运行时修改模板会污染缓存，
+      导致同场战斗中或跨战斗中同一单位类型的所有实例状态错乱。UnitInstance 分离模式是唯一安全的运行时状态持有方案。"
+    adr: docs/architecture/adr-0003-data-loading-strategy.md
+    added: "2026-06-18"
+
+  - pattern: string_state_comparison
+    status: active
+    description: "游戏逻辑状态机不得用字符串常量或裸整数表示状态。内部状态变量必须为 GDScript enum 类型，
+      状态比较必须用 enum 值（如 `_battle_state == BattleState.ROUND_START`），
+      不得用字符串（`_battle_state == \"ROUND_START\"`）或裸整数（`_battle_state == 1`）。
+      RunManager.current_phase (String) 是唯一允许对外暴露的 String 状态值，
+      由 ADR-0002 public API 合约规定——内部 _phase 变量仍必须为 RunPhase enum 类型，
+      对外转换须经由 _PHASE_TO_STRING 常量字典。"
+    exception: "RunManager.current_phase: String — 仅此一处，由 ADR-0002 registry 条目 run_current_phase 明确规定。"
+    why: "字符串状态比较在拼写错误时不触发编译期错误（'ROUND_STRAT' 是合法 GDScript 字符串），
+      导致状态转换逻辑在运行时静默失效、状态守卫失效。GDScript enum 将拼写错误转为编译错误，
+      是 Godot 4.x 类型安全 GDScript 的惯用模式。"
+    adr: docs/architecture/adr-0004-gdscript-state-machine-pattern.md
+    added: "2026-06-18"
+
+  - pattern: inline_cell_size_multiplication
+    status: active
+    description: "任何系统不得内联实现逻辑格到 3D 世界坐标的转换（如 `col * 2.0`、`row * 2.0`）。
+      所有坐标转换必须通过 `GridCoordMapper.grid_to_world(Vector2i)` 静态方法，
+      并通过 `GridCoordMapper.world_to_grid(Vector3)` 反向转换。
+      `GridCoordMapper.CELL_SIZE` 是全项目唯一格子尺寸定义，不得在其他文件中硬编码数值 2.0。"
+    exception: "无。GridCoordMapper 内部实现本身使用 CELL_SIZE 常量（而非字面量 2.0）。"
+    why: "内联坐标计算散布于多个系统时，一旦 CELL_SIZE 需要调整（垂直切片校准期间），
+      需要全局搜索替换，极易遗漏并产生坐标不一致 bug。"
+    adr: docs/architecture/adr-0006-3d-board-rendering.md
+    added: "2026-06-18"
+
+  - pattern: unit_physics_body_for_picking
+    status: active
+    description: "单位视觉节点（UnitView）不得挂载 StaticBody3D / Area3D / CollisionShape3D 仅为鼠标拾取，
+      也不得用 CharacterBody3D / move_and_slide。单位为离散格吸附，拾取必须走
+      Camera 射线—平面(Y=0)解析交点 → GridCoordMapper.world_to_grid → GridBoard.get_unit_at(pos)。"
+    exception: "无（MVP 范围）。若未来引入投射物 3D 命中体等物理需求，须另立 ADR 明确碰撞体所有权。"
+    why: "棋盘单平面、单位格中心吸附，逻辑占用表（GridBoard）是唯一权威事实源。
+      物理碰撞体在此冗余，且会与逻辑占用表形成双事实源，导致拾取与逻辑不一致。"
+    adr: docs/architecture/adr-0007-unit-rendering.md
+    added: "2026-06-18"
+
+  - pattern: unit_view_writes_back_to_data
+    status: active
+    description: "UnitView / UnitLayer 不得写回 UnitDefinition 或 UnitInstance 字段。
+      数据流严格单向：数据（UnitInstance/UnitDefinition）→ 视觉（UnitView）。
+      视觉节点只读数据以呈现，绝不反向修改游戏状态。"
+    exception: "无。UnitView 是纯呈现层；状态变更归回合管理 / 战斗解算系统。"
+    why: "视觉层写回会污染只读模板（违反 runtime_unit_definition_mutation）并制造
+      视觉—逻辑状态分叉。单向数据流是可测试性与状态一致性的前提。"
+    adr: docs/architecture/adr-0007-unit-rendering.md
+    added: "2026-06-18"
+
+  - pattern: engine_time_scale_multi_source_write
+    status: active
+    description: "Engine.time_scale 只能由 BurstPresentation（爆发演出系统）写入。
+      其他任何系统不得读改 Engine.time_scale 作为自身计时手段。"
+    exception: "无。慢动作/定格是爆发演出的专属表达；若未来出现第二个 time_scale 用例，须另立 ADR 定义单点协调机制。"
+    why: "Engine.time_scale 是全局副作用，多源写入会相互覆盖、产生残留冻结，难以追踪。
+      单点所有权保证 skip/重入时能可靠恢复 1.0（ADR-0008 AC-11）。"
+    adr: docs/architecture/adr-0008-burst-presentation-timing.md
+    added: "2026-06-18"
+
+  - pattern: camera_shake_global_transform_or_random
+    status: active
+    description: "相机震动不得修改 Camera3D.global_transform，只能改 local position offset（经 transform.basis 在视图空间施加）。
+      不得用随机/噪声偏移——须用确定性 Tween 往复衰减波形。震动末段必须精确回弹至 rest position。"
+    exception: "无。震动是纯演出平移效果，不应改变相机朝向或引入非确定性。"
+    why: "改 global_transform 会破坏 look_at 朝向；随机偏移破坏确定性单测并违反项目无随机偏好；
+      不归位会累积漂移使相机逐次偏离。"
+    adr: docs/architecture/adr-0009-camera-shake.md
+    added: "2026-06-18"
 
 # Example:
 #

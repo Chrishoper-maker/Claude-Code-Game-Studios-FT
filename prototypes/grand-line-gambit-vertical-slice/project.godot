@@ -1,0 +1,23 @@
+; VERTICAL SLICE - NOT FOR PRODUCTION
+; Validation Question: 新玩家 ~3min 无引导触发相邻爆发(定格+分镜+震屏)，
+;   体验"伙伴并肩=战术热血回报"；ADR-0006~0009 在 Godot 4.6.3 落地。
+; Date: 2026-06-18
+;
+; Godot 4.6.3 project file. Open this folder in Godot to run.
+
+config_version=5
+
+[application]
+
+config/name="孤帆棋海 — Vertical Slice"
+run/main_scene="res://scenes/Main.tscn"
+config/features=PackedStringArray("4.6")
+
+[autoload]
+
+EventBus="*res://src/autoloads/event_bus.gd"
+
+[rendering]
+
+renderer/rendering_method="forward_plus"
+renderer/rendering_method.mobile="mobile"

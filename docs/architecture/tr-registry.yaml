@@ -24,33 +24,605 @@
 #
 # STATUS VALUES: active | deprecated | superseded-by: TR-[system]-NNN
 
-version: 1
-last_updated: ""
+version: 2
+last_updated: "2026-06-18"
+# v2 (2026-06-18 /architecture-review rerun): +TR-BPS-005(相机震动), +TR-BHS-008(格子高亮对齐),
+#   +TR-BMS-007(地形视觉对齐) — 由 ADR-0009/0006/0007 引入的视觉层需求首次登记。
 
-requirements: []
+requirements:
 
-# --- EXAMPLE ENTRIES (remove when first real entries are added) ---
-#
-# - id: TR-combat-001
-#   system: combat
-#   gdd: design/gdd/combat-system.md
-#   requirement: "Player takes damage from enemies based on attack power minus defence"
-#   created: 2026-03-10
-#   revised: ""
-#   status: active
-#
-# - id: TR-combat-002
-#   system: combat
-#   gdd: design/gdd/combat-system.md
-#   requirement: "Combo window timing is 0.4 seconds between hits"
-#   created: 2026-03-10
-#   revised: "2026-04-01"
-#   status: active
-#
-# - id: TR-combat-003
-#   system: combat
-#   gdd: design/gdd/combat-system.md
-#   requirement: "Old damage formula using raw stats"
-#   created: 2026-03-10
-#   revised: ""
-#   status: superseded-by: TR-combat-001
+  # ── 单位数据系统 (unit-data-system) ──────────────────────────────────────────
+  - id: TR-UDS-001
+    system: unit-data
+    gdd: design/gdd/unit-data-system.md
+    requirement: "UnitDefinition schema: id / display_name / faction / unit_class / max_hp / move_range / attack_range / base_damage / bond_tags / class_action_id"
+    created: "2026-06-18"
+    revised: ""
+    status: active
+
+  - id: TR-UDS-002
+    system: unit-data
+    gdd: design/gdd/unit-data-system.md
+    requirement: "数据驱动：增删单位仅需新增数据文件，无需改代码（目录扫描加载）"
+    created: "2026-06-18"
+    revised: ""
+    status: active
+
+  - id: TR-UDS-003
+    system: unit-data
+    gdd: design/gdd/unit-data-system.md
+    requirement: "UnitInstance 运行时可变状态（current_hp/grid_position/has_moved/has_acted/has_used_verb/is_alive）与 UnitDefinition 模板严格分离，模板运行时只读"
+    created: "2026-06-18"
+    revised: ""
+    status: active
+
+  - id: TR-UDS-004
+    system: unit-data
+    gdd: design/gdd/unit-data-system.md
+    requirement: "CrewDefinition 扩展字段：title / battle_cry / persona_line / named_pair_overrides / recruit_pool_tier / portrait_id / model_id"
+    created: "2026-06-18"
+    revised: ""
+    status: active
+
+  - id: TR-UDS-005
+    system: unit-data
+    gdd: design/gdd/unit-data-system.md
+    requirement: "EnemyDefinition 扩展字段：behavior_type (MELEE/RANGED/GUARDIAN/SWARMER) / home_pos / threat_tier"
+    created: "2026-06-18"
+    revised: ""
+    status: active
+
+  - id: TR-UDS-006
+    system: unit-data
+    gdd: design/gdd/unit-data-system.md
+    requirement: "fail-fast 加载验证：结构错误 → push_error + 返回空数组；平衡告警 → push_warning + 继续加载"
+    created: "2026-06-18"
+    revised: ""
+    status: active
+
+  - id: TR-UDS-007
+    system: unit-data
+    gdd: design/gdd/unit-data-system.md
+    requirement: "UnitDataManager 接口：get_unit(id: String) → UnitDefinition / get_all_units() → Array[UnitDefinition]"
+    created: "2026-06-18"
+    revised: ""
+    status: active
+
+  - id: TR-UDS-008
+    system: unit-data
+    gdd: design/gdd/unit-data-system.md
+    requirement: "power_score 平衡公式：max_hp×0.5 + base_damage×2 + attack_range×1 + move_range×1 + action_weight×2；船员强度带 [13,16]"
+    created: "2026-06-18"
+    revised: ""
+    status: active
+
+  # ── 网格棋盘系统 (grid-board-system) ─────────────────────────────────────────
+  - id: TR-GBS-001
+    system: grid-board
+    gdd: design/gdd/grid-board-system.md
+    requirement: "8×8 逻辑格坐标系（col, row ∈ [0,7]），全系统唯一空间几何权威，下游系统不得自行实现几何"
+    created: "2026-06-18"
+    revised: ""
+    status: active
+
+  - id: TR-GBS-002
+    system: grid-board
+    gdd: design/gdd/grid-board-system.md
+    requirement: "相邻定义：切比雪夫距离=1，八向（含斜格），GridBoard 是唯一权威"
+    created: "2026-06-18"
+    revised: ""
+    status: active
+
+  - id: TR-GBS-003
+    system: grid-board
+    gdd: design/gdd/grid-board-system.md
+    requirement: "攻击距离双度量：近战(attack_range=1)用切比雪夫；远程(≥2)用曼哈顿"
+    created: "2026-06-18"
+    revised: ""
+    status: active
+
+  - id: TR-GBS-004
+    system: grid-board
+    gdd: design/gdd/grid-board-system.md
+    requirement: "BFS 可达格计算（4向移动，障碍格/占用格不可穿越，起点包含，move_range 步数上限）"
+    created: "2026-06-18"
+    revised: ""
+    status: active
+
+  - id: TR-GBS-005
+    system: grid-board
+    gdd: design/gdd/grid-board-system.md
+    requirement: "棋盘信号：unit_placed(unit_id, pos) / unit_removed(unit_id, pos) / terrain_changed(pos, type) / unit_moved(unit_id, from_pos, to_pos)"
+    created: "2026-06-18"
+    revised: ""
+    status: active
+
+  - id: TR-GBS-006
+    system: grid-board
+    gdd: design/gdd/grid-board-system.md
+    requirement: "逻辑格↔3D 世界坐标映射（等轴测/正交投影？格子尺寸？→ 须独立 ADR-0006）"
+    created: "2026-06-18"
+    revised: ""
+    status: active
+
+  # ── 回合管理系统 (turn-management-system) ─────────────────────────────────────
+  - id: TR-TMS-001
+    system: turn-mgmt
+    gdd: design/gdd/turn-management-system.md
+    requirement: "BattleState 7 状态机：SETUP / ROUND_START / ACTIVE_TURN / TURN_END / ROUND_END / BATTLE_WIN / BATTLE_LOSS"
+    created: "2026-06-18"
+    revised: ""
+    status: active
+
+  - id: TR-TMS-002
+    system: turn-mgmt
+    gdd: design/gdd/turn-management-system.md
+    requirement: "先攻值公式：move_range×2 + is_ally×1 + unit_id%1000×0.000001；降序排列"
+    created: "2026-06-18"
+    revised: ""
+    status: active
+
+  - id: TR-TMS-003
+    system: turn-mgmt
+    gdd: design/gdd/turn-management-system.md
+    requirement: "三独立行动点模型（has_moved / has_acted / has_used_verb），可任意顺序，未用不结转"
+    created: "2026-06-18"
+    revised: ""
+    status: active
+
+  - id: TR-TMS-004
+    system: turn-mgmt
+    gdd: design/gdd/turn-management-system.md
+    requirement: "胜利条件：任意时刻敌方全 Downed → 立即 emit battle_won / 进入 BATTLE_WIN（不等轮次结束）"
+    created: "2026-06-18"
+    revised: ""
+    status: active
+
+  - id: TR-TMS-005
+    system: turn-mgmt
+    gdd: design/gdd/turn-management-system.md
+    requirement: "失败条件：ROUND_END 时 round_count ≥ ROUND_LIMIT → emit battle_lost / 进入 BATTLE_LOSS"
+    created: "2026-06-18"
+    revised: ""
+    status: active
+
+  - id: TR-TMS-006
+    system: turn-mgmt
+    gdd: design/gdd/turn-management-system.md
+    requirement: "信号契约：battle_started / battle_won / battle_lost / round_started(round_count) / unit_turn_started(unit_id) / unit_turn_ended(unit_id) / enemy_turn_started(unit_id) / enemy_actions_completed(unit_id) / last_round_warning()"
+    created: "2026-06-18"
+    revised: ""
+    status: active
+
+  - id: TR-TMS-007
+    system: turn-mgmt
+    gdd: design/gdd/turn-management-system.md
+    requirement: "终态守卫：BATTLE_WIN / BATTLE_LOSS 进入后任何后续事件不可使状态退出（AC-12）"
+    created: "2026-06-18"
+    revised: ""
+    status: active
+
+  # ── 战斗解算系统 (battle-resolution-system) ──────────────────────────────────
+  - id: TR-BRS-001
+    system: battle-resolution
+    gdd: design/gdd/battle-resolution-system.md
+    requirement: "普通攻击完整路径（13步有序：触发验证→emit attack_initiated→修正器收集→光环加成→伤害计算→HP钳制→信号广播→行动点标记→Downed检测）"
+    created: "2026-06-18"
+    revised: ""
+    status: active
+
+  - id: TR-BRS-002
+    system: battle-resolution
+    gdd: design/gdd/battle-resolution-system.md
+    requirement: "六职业动词独立语义：斩(AoE近战)/轰(穿透直线,不识友敌)/挡(GUARDED状态)/愈(治疗)/移(强制位移)/奏(AURA_BONUS光环)"
+    created: "2026-06-18"
+    revised: ""
+    status: active
+
+  - id: TR-BRS-003
+    system: battle-resolution
+    gdd: design/gdd/battle-resolution-system.md
+    requirement: "resolve_unit_downed() 原子操作：步骤1–6（移除存活列表/设is_alive=false/设sentinel/清棋盘格/清修正器/清状态）先于步骤7（emit unit_downed）"
+    created: "2026-06-18"
+    revised: ""
+    status: active
+
+  - id: TR-BRS-004
+    system: battle-resolution
+    gdd: design/gdd/battle-resolution-system.md
+    requirement: "register_attack_modifier(attacker_id: String, bonus_damage: int) 注入接口供相邻羁绊系统在 attack_initiated 信号回调中调用"
+    created: "2026-06-18"
+    revised: ""
+    status: active
+
+  - id: TR-BRS-005
+    system: battle-resolution
+    gdd: design/gdd/battle-resolution-system.md
+    requirement: "炮手最小射程约束：unit_class==gunner 的普通攻击须满足 manhattan_distance ≥ GUNNER_MIN_RANGE=2"
+    created: "2026-06-18"
+    revised: ""
+    status: active
+
+  - id: TR-BRS-006
+    system: battle-resolution
+    gdd: design/gdd/battle-resolution-system.md
+    requirement: "全量战斗事件信号：attack_initiated(attacker_id, verb) / attack_executed(attacker_id, target_id, final_damage) / damage_dealt(target_id, final_damage, new_hp) / heal_executed / guard_applied / aura_performed(caster_id, buffed_ids, aura_value) / slash_executed(attacker_id, target_ids, pre_guard_damage) / cannon_executed(attacker_id, direction, hit_ids, base_damage) / displacement_executed / unit_downed / status_consumed(unit_id, status_type)"
+    created: "2026-06-18"
+    revised: ""
+    status: active
+
+  - id: TR-BRS-007
+    system: battle-resolution
+    gdd: design/gdd/battle-resolution-system.md
+    requirement: "敌人意图全明示契约：执行结果与 ROUND_START 声明的意图完全一致，无随机偏差"
+    created: "2026-06-18"
+    revised: ""
+    status: active
+
+  - id: TR-BRS-008
+    system: battle-resolution
+    gdd: design/gdd/battle-resolution-system.md
+    requirement: "forced_move_unit(unit_id: String, destination: Vector2i) → bool 新接口需求（航海士·移职业动词）须追加到 grid-board-system"
+    created: "2026-06-18"
+    revised: ""
+    status: active
+
+  # ── 相邻羁绊系统 (adjacency-bond-system) ─────────────────────────────────────
+  - id: TR-ABS-001
+    system: adjacency-bond
+    gdd: design/gdd/adjacency-bond-system.md
+    requirement: "羁绊矩阵 BOND_MATRIX[6×6] 对称：BOND_BASE=1（通用）/ BOND_ELITE=2（6对精英配对：剑+乐/炮+乐/剑+医/炮+航/壁+医/剑+壁）"
+    created: "2026-06-18"
+    revised: ""
+    status: active
+
+  - id: TR-ABS-002
+    system: adjacency-bond
+    gdd: design/gdd/adjacency-bond-system.md
+    requirement: "仅处理己方单位发起的普通攻击和斩，其他动词和敌方攻击不触发本系统"
+    created: "2026-06-18"
+    revised: ""
+    status: active
+
+  - id: TR-ABS-003
+    system: adjacency-bond
+    gdd: design/gdd/adjacency-bond-system.md
+    requirement: "订阅 attack_initiated(attacker_id, verb) 信号，在回调中同步调用 register_attack_modifier 注入，Godot 同步信号保证注入先于伤害计算"
+    created: "2026-06-18"
+    revised: ""
+    status: active
+
+  - id: TR-ABS-004
+    system: adjacency-bond
+    gdd: design/gdd/adjacency-bond-system.md
+    requirement: "单次攻击总注入设计不超过 MAX_MODIFIER_SUM=2（精英羁绊=2=上限，超额由战斗解算截断）"
+    created: "2026-06-18"
+    revised: ""
+    status: active
+
+  # ── 羁绊槽与爆发技系统 (bond-gauge-burst-system) ──────────────────────────────
+  - id: TR-BGBS-001
+    system: bond-gauge-burst
+    gdd: design/gdd/bond-gauge-burst-system.md
+    requirement: "全队单条共享羁绊槽（BOND_GAUGE_MAX=10），战斗内跨回合保留，不跨战斗"
+    created: "2026-06-18"
+    revised: ""
+    status: active
+
+  - id: TR-BGBS-002
+    system: bond-gauge-burst
+    gdd: design/gdd/bond-gauge-burst-system.md
+    requirement: "攻击充能：订阅 attack_executed，有相邻存活友方 +2（CHARGE_ADJACENT），无 +1（CHARGE_SOLO）"
+    created: "2026-06-18"
+    revised: ""
+    status: active
+
+  - id: TR-BGBS-003
+    system: bond-gauge-burst
+    gdd: design/gdd/bond-gauge-burst-system.md
+    requirement: "轰击充能：订阅 cannon_executed，每次轰击使用充能一次（不乘命中数量）"
+    created: "2026-06-18"
+    revised: ""
+    status: active
+
+  - id: TR-BGBS-004
+    system: bond-gauge-burst
+    gdd: design/gdd/bond-gauge-burst-system.md
+    requirement: "受击充能：订阅 damage_dealt（己方受击），每回合上限 RECEIVED_CHARGE_CAP=2 次；ROUND_END 重置计数"
+    created: "2026-06-18"
+    revised: ""
+    status: active
+
+  - id: TR-BGBS-005
+    system: bond-gauge-burst
+    gdd: design/gdd/bond-gauge-burst-system.md
+    requirement: "爆发激活 5 条件：槽满 + lead.is_alive + lead.has_acted=false + partner.is_alive + partner.has_used_verb=false + lead≠partner + chebyshev(lead, partner)=1"
+    created: "2026-06-18"
+    revised: ""
+    status: active
+
+  - id: TR-BGBS-006
+    system: bond-gauge-burst
+    gdd: design/gdd/bond-gauge-burst-system.md
+    requirement: "爆发效果表 BURST_EFFECT_TABLE[6×6] 对称：6 种精英爆发（MVP 2种/Alpha 4种）+ 通用协力强击框架"
+    created: "2026-06-18"
+    revised: ""
+    status: active
+
+  - id: TR-BGBS-007
+    system: bond-gauge-burst
+    gdd: design/gdd/bond-gauge-burst-system.md
+    requirement: "信号：gauge_charged(attacker_id, charge_amount, bond_gauge_current) / bond_gauge_full() / burst_executed(lead_id, partner_id, burst_type_id) / burst_presentation_requested(lead_id, partner_id, burst_type_id)"
+    created: "2026-06-18"
+    revised: ""
+    status: active
+
+  # ── 敌人 AI 与意图系统 (enemy-ai-intent-system) ───────────────────────────────
+  - id: TR-EAIS-001
+    system: enemy-ai-intent
+    gdd: design/gdd/enemy-ai-intent-system.md
+    requirement: "ROUND_START 时同步声明全部存活敌方意图（IntentRecord：unit_id / action_type / target_id / target_pos / is_stale）"
+    created: "2026-06-18"
+    revised: ""
+    status: active
+
+  - id: TR-EAIS-002
+    system: enemy-ai-intent
+    gdd: design/gdd/enemy-ai-intent-system.md
+    requirement: "4 种确定性行为原型决策树：MELEE(贴身)/RANGED(保距)/GUARDIAN(驻守)/SWARMER(群攻)"
+    created: "2026-06-18"
+    revised: ""
+    status: active
+
+  - id: TR-EAIS-003
+    system: enemy-ai-intent
+    gdd: design/gdd/enemy-ai-intent-system.md
+    requirement: "enemy_turn_started(unit_id) 时执行意图（含 is_stale 检测 + stale_fallback 重新评估）"
+    created: "2026-06-18"
+    revised: ""
+    status: active
+
+  - id: TR-EAIS-004
+    system: enemy-ai-intent
+    gdd: design/gdd/enemy-ai-intent-system.md
+    requirement: "确定性保证：相同棋盘状态产生完全相同 IntentRecord，无随机函数"
+    created: "2026-06-18"
+    revised: ""
+    status: active
+
+  - id: TR-EAIS-005
+    system: enemy-ai-intent
+    gdd: design/gdd/enemy-ai-intent-system.md
+    requirement: "执行完毕后 emit enemy_actions_completed(unit_id) 通知回合管理推进先攻队列"
+    created: "2026-06-18"
+    revised: ""
+    status: active
+
+  # ── 爆发演出系统 (burst-presentation-system) ──────────────────────────────────
+  - id: TR-BPS-001
+    system: burst-presentation
+    gdd: design/gdd/burst-presentation-system.md
+    requirement: "5 阶段串行演出序列（P1 FREEZE → P2 PANELS_IN → P3 BURST_NAME → P4 IMPACT → P5 PANELS_OUT）"
+    created: "2026-06-18"
+    revised: ""
+    status: active
+
+  - id: TR-BPS-002
+    system: burst-presentation
+    gdd: design/gdd/burst-presentation-system.md
+    requirement: "输入锁定信号：burst_presentation_started/ended，接收方须以幂等布尔（非计数器）处理"
+    created: "2026-06-18"
+    revised: ""
+    status: active
+
+  - id: TR-BPS-003
+    system: burst-presentation
+    gdd: design/gdd/burst-presentation-system.md
+    requirement: "P1 阶段操作 Engine.time_scale=0.05；Tween 须使用 unscaled delta 模式（HIGH RISK：Godot 4.5/4.6，须立项 ADR-0008）"
+    created: "2026-06-18"
+    revised: ""
+    status: active
+
+  - id: TR-BPS-004
+    system: burst-presentation
+    gdd: design/gdd/burst-presentation-system.md
+    requirement: "降级模式（USE_BURST_PRESENTATION_FALLBACK）：跳过美术资产，仅文字蒙版，信号链和输入锁定仍正常运行"
+    created: "2026-06-18"
+    revised: ""
+    status: active
+
+  - id: TR-BPS-005
+    system: burst-presentation
+    gdd: design/gdd/burst-presentation-system.md
+    requirement: "P4 IMPACT 相机震动（Rule 5 / Formula 3）：Camera3D 局部 position 偏移往复 + 衰减包络；BURST_CAMERA_SHAKE_INTENSITY 以 pixel 表达，须经相机 FOV+深度换算为世界单位（pixel→世界换算，关闭 OQ-1 / ADR-BURST-CAMERA-SHAKE）"
+    created: "2026-06-18"
+    revised: ""
+    status: active
+
+  # ── 战斗 HUD 系统 (battle-hud-system) ─────────────────────────────────────────
+  - id: TR-BHS-001
+    system: battle-hud
+    gdd: design/gdd/battle-hud-system.md
+    requirement: "单位状态面板：HP 条（current_hp/max_hp）/ 三行动点 pip / GUARDED 图标 / AURA_BONUS 图标 / 击倒灰化"
+    created: "2026-06-18"
+    revised: ""
+    status: active
+
+  - id: TR-BHS-002
+    system: battle-hud
+    gdd: design/gdd/battle-hud-system.md
+    requirement: "羁绊槽 10 格显示 + 满格闪烁 + 爆发按钮状态（灰色/金色可交互/选中中）"
+    created: "2026-06-18"
+    revised: ""
+    status: active
+
+  - id: TR-BHS-003
+    system: battle-hud
+    gdd: design/gdd/battle-hud-system.md
+    requirement: "敌人意图叠层（格子坐标→屏幕坐标映射），全明示契约：首个 ACTIVE_TURN 前必须完整显示（Dual-focus HIGH RISK：Godot 4.6）"
+    created: "2026-06-18"
+    revised: ""
+    status: active
+
+  - id: TR-BHS-004
+    system: battle-hud
+    gdd: design/gdd/battle-hud-system.md
+    requirement: "先攻队列轴：降序显示当前轮所有存活单位，initiative 取整显示，已行动灰化"
+    created: "2026-06-18"
+    revised: ""
+    status: active
+
+  - id: TR-BHS-005
+    system: battle-hud
+    gdd: design/gdd/battle-hud-system.md
+    requirement: "轮次计数显示（X/ROUND_LIMIT）+ last_round_warning 触发顶部预警横幅"
+    created: "2026-06-18"
+    revised: ""
+    status: active
+
+  - id: TR-BHS-006
+    system: battle-hud
+    gdd: design/gdd/battle-hud-system.md
+    requirement: "伤害/治疗浮字（从格子向上飘动，HUD_FLOAT_DURATION ms，同格多浮字垂直错开 HUD_FLOAT_OFFSET_Y px）"
+    created: "2026-06-18"
+    revised: ""
+    status: active
+
+  - id: TR-BHS-007
+    system: battle-hud
+    gdd: design/gdd/battle-hud-system.md
+    requirement: "输入锁定：幂等布尔（non-counter）模式，burst_presentation_started→locked=true / ended→locked=false"
+    created: "2026-06-18"
+    revised: ""
+    status: active
+
+  - id: TR-BHS-008
+    system: battle-hud
+    gdd: design/gdd/battle-hud-system.md
+    requirement: "格子高亮（可达/攻击/羁绊）视觉层与逻辑格边界精确对齐，无肉眼可见偏移；高亮放置经 GridCoordMapper.grid_to_world()"
+    created: "2026-06-18"
+    revised: ""
+    status: active
+
+  # ── 战斗地图系统 (battle-map-system) ─────────────────────────────────────────
+  - id: TR-BMS-001
+    system: battle-map
+    gdd: design/gdd/battle-map-system.md
+    requirement: "MapDefinition schema（map_id/terrain_data/deploy_zone/enemy_roster/island_tier/annotated_engagement_distance/map_scene_id）+ EnemySlotDefinition 结构"
+    created: "2026-06-18"
+    revised: ""
+    status: active
+
+  - id: TR-BMS-002
+    system: battle-map
+    gdd: design/gdd/battle-map-system.md
+    requirement: "6 阶段短路验证序列（F1地形密度≤25% / F2部署区≥6格 / F3敌人数量[2,6] / F4分离距离≥3 / F5威胁层级映射 / F6远程走廊）"
+    created: "2026-06-18"
+    revised: ""
+    status: active
+
+  - id: TR-BMS-003
+    system: battle-map
+    gdd: design/gdd/battle-map-system.md
+    requirement: "MapState 6 状态机：MAP_UNLOADED / MAP_VALIDATING / MAP_LOADING / MAP_READY / MAP_ACTIVE / MAP_RESOLVED"
+    created: "2026-06-18"
+    revised: ""
+    status: active
+
+  - id: TR-BMS-004
+    system: battle-map
+    gdd: design/gdd/battle-map-system.md
+    requirement: "远程走廊检测 F6：连续非BLOCKED格≥RANGED_CORRIDOR_MIN_LENGTH=3 且有单侧约束（BLOCKED邻格或边界行/列）"
+    created: "2026-06-18"
+    revised: ""
+    status: active
+
+  - id: TR-BMS-005
+    system: battle-map
+    gdd: design/gdd/battle-map-system.md
+    requirement: "最小分离距离 F4：所有敌方起始格与最近部署区格曼哈顿距离 ≥ MAP_SEPARATION_MIN=3（修复炮手身份原型课题）"
+    created: "2026-06-18"
+    revised: ""
+    status: active
+
+  - id: TR-BMS-006
+    system: battle-map
+    gdd: design/gdd/battle-map-system.md
+    requirement: "get_map_for_island(island_index) → MapDefinition 接口（航线与招募系统调用，按 island_tier 筛选地图池）"
+    created: "2026-06-18"
+    revised: ""
+    status: active
+
+  - id: TR-BMS-007
+    system: battle-map
+    gdd: design/gdd/battle-map-system.md
+    requirement: "地形资源节点视觉层与逻辑格坐标对齐：terrain 节点 position 经 GridCoordMapper.grid_to_world(terrain_pos) 放置，与棋盘坐标系零偏差"
+    created: "2026-06-18"
+    revised: ""
+    status: active
+
+  # ── 航线与招募系统 (route-recruitment-system) ─────────────────────────────────
+  - id: TR-RRS-001
+    system: route-recruitment
+    gdd: design/gdd/route-recruitment-system.md
+    requirement: "RunPhase 5 状态机：RUN_IDLE / RUN_DEPLOYING / RUN_ISLAND_BATTLE / RUN_RECRUITING / RUN_END"
+    created: "2026-06-18"
+    revised: ""
+    status: active
+
+  - id: TR-RRS-002
+    system: route-recruitment
+    gdd: design/gdd/route-recruitment-system.md
+    requirement: "3选1候选招募：同次三选一中不允许相同 unit_class；落选者进入 _excluded_offers（本 run 不再出现）"
+    created: "2026-06-18"
+    revised: ""
+    status: active
+
+  - id: TR-RRS-003
+    system: route-recruitment
+    gdd: design/gdd/route-recruitment-system.md
+    requirement: "船员 run 内永久死亡：unit_downed 后移出 roster 加入 _downed_this_run，不跨 run 持久化"
+    created: "2026-06-18"
+    revised: ""
+    status: active
+
+  - id: TR-RRS-004
+    system: route-recruitment
+    gdd: design/gdd/route-recruitment-system.md
+    requirement: "run_completed(won: bool, island_count: int, roster_snapshot: Array) 信号（悬赏成长系统消费 roster_snapshot）"
+    created: "2026-06-18"
+    revised: ""
+    status: active
+
+  - id: TR-RRS-005
+    system: route-recruitment
+    gdd: design/gdd/route-recruitment-system.md
+    requirement: "run_phase_changed(phase: String) 信号，唯一发射方 RunManager；值域 'BATTLE'/'RECRUITING'/'DEPLOYING'/'RUN_END'"
+    created: "2026-06-18"
+    revised: ""
+    status: active
+
+  # ── 航线与招募 UI (route-recruitment-ui) ─────────────────────────────────────
+  - id: TR-RRUI-001
+    system: route-recruitment-ui
+    gdd: design/gdd/route-recruitment-ui.md
+    requirement: "RecruitScreen：三选一候选卡（职业图标/名/倾向描述/battle_cry）+ roster 小图标列 + 航线进度条"
+    created: "2026-06-18"
+    revised: ""
+    status: active
+
+  - id: TR-RRUI-002
+    system: route-recruitment-ui
+    gdd: design/gdd/route-recruitment-ui.md
+    requirement: "DeployScreen：roster 多选最多 4 名（roster>DEPLOY_LIMIT 时展示，否则自动全员参战）→ confirm_deploy"
+    created: "2026-06-18"
+    revised: ""
+    status: active
+
+  - id: TR-RRUI-003
+    system: route-recruitment-ui
+    gdd: design/gdd/route-recruitment-ui.md
+    requirement: "阵亡通知卡：战中缓存 crew_member_downed，战后（battle_won/lost）在招募界面前展示；玩家点「继续」关闭"
+    created: "2026-06-18"
+    revised: ""
+    status: active

@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<!--
+  PROTOTYPE - NOT FOR PRODUCTION
+  Question: "站位充能 → 相邻爆发"的战棋核心循环本身是否好玩？
+            (验证信号: 玩家为羁绊站位主动冒险≥2次/局, 且爆发后主动重开)
+  Date: 2026-06-13
+-->
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>孤帆棋海 — 概念原型</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
+  body {
+    background: #16324a; color: #cfe3f0; font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+    display: flex; flex-direction: column; align-items: center; padding: 12px; min-height: 100vh;
+    transition: background .3s;
+  }
+  body.burst-mode { background: #5a2410; }
+  body.shake { animation: shake .35s; }
+  @keyframes shake {
+    0%,100% { transform: translate(0,0); } 20% { transform: translate(-8px,4px); }
+    40% { transform: translate(8px,-4px); } 60% { transform: translate(-6px,-3px); } 80% { transform: translate(5px,3px); }
+  }
+  h1 { font-size: 18px; margin: 4px 0; color: #ffd66b; }
+  #topbar { display: flex; gap: 14px; align-items: center; margin-bottom: 8px; flex-wrap: wrap; justify-content: center; }
+  #topbar button, #endturn, .pairbtn, #overlay button {
+    background: #2a567a; color: #fff; border: 1px solid #4d83ad; border-radius: 6px;
+    padding: 6px 14px; font-size: 14px; cursor: pointer;
+  }
+  #topbar button.active { background: #ffd66b; color: #16324a; font-weight: bold; }
+  #gaugewrap { display: flex; align-items: center; gap: 8px; }
+  #gaugebar { width: 220px; height: 18px; background: #0d2235; border: 1px solid #4d83ad; border-radius: 9px; overflow: hidden; }
+  #gaugefill { height: 100%; width: 0%; background: linear-gradient(90deg,#3fa7d6,#ffd66b); transition: width .25s; }
+  #gaugefill.full { background: linear-gradient(90deg,#ff9d2e,#ff4d4d); animation: pulse .6s infinite alternate; }
+  @keyframes pulse { from { filter: brightness(1); } to { filter: brightness(1.5); } }
+  #board {
+    display: grid; grid-template-columns: repeat(8, 54px); grid-template-rows: repeat(8, 54px);
+    gap: 2px; background: #0d2235; padding: 6px; border-radius: 8px; position: relative;
+  }
+  .tile { width: 54px; height: 54px; background: #1d4060; border-radius: 4px; position: relative; cursor: pointer; }
+  .tile:nth-child(even) { background: #1a3a58; }
+  .tile.move-ok { background: #2e6c4f; box-shadow: inset 0 0 0 2px #5fd49a; }
+  .tile.atk-ok { background: #7a2e2e; box-shadow: inset 0 0 0 2px #ff7b7b; }
+  .unit {
+    position: absolute; inset: 4px; border-radius: 6px; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; font-size: 17px; line-height: 1; transition: all .18s;
+  }
+  .unit .hp { font-size: 10px; margin-top: 2px; color: #fff; }
+  .crew { background: #2e7dbf; box-shadow: 0 0 0 2px #79c4ff; }
+  .crew.gunner { background: #2eb0a8; box-shadow: 0 0 0 2px #8ef0e8; }
+  .crew.selected { box-shadow: 0 0 0 3px #ffd66b; transform: scale(1.1); z-index: 2; }
+  .crew.done { filter: grayscale(.85) brightness(.7); }
+  .crew.bonded::after {
+    content: "🔗"; position: absolute; top: -9px; right: -7px; font-size: 12px;
+  }
+  .enemy { background: #b03a3a; box-shadow: 0 0 0 2px #ff8d8d; }
+  .unit.gauge-full { outline: 2px solid #ff9d2e; animation: pulse .6s infinite alternate; }
+  .dmgnum {
+    position: absolute; font-weight: bold; color: #ffec8a; font-size: 18px; pointer-events: none;
+    animation: rise 0.9s forwards; z-index: 10; text-shadow: 0 0 4px #000;
+  }
+  @keyframes rise { from { opacity: 1; transform: translateY(0); } to { opacity: 0; transform: translateY(-36px); } }
+  #flash {
+    position: fixed; inset: 0; background: #fff; opacity: 0; pointer-events: none; z-index: 50;
+  }
+  #flash.on { animation: flashAnim .4s; }
+  @keyframes flashAnim { 0% { opacity: .9; } 100% { opacity: 0; } }
+  #banner {
+    position: fixed; top: 38%; left: 50%; transform: translate(-50%,-50%) skew(-8deg) scale(0);
+    background: linear-gradient(135deg,#ff4d4d,#ff9d2e); color: #fff; font-size: 40px; font-weight: 900;
+    padding: 18px 60px; z-index: 60; pointer-events: none; letter-spacing: 6px;
+    box-shadow: 0 0 0 6px #fff, 0 0 40px #ffb14d; white-space: nowrap;
+  }
+  #banner.show { animation: bannerAnim 1.2s forwards; }
+  @keyframes bannerAnim {
+    0% { transform: translate(-50%,-50%) skew(-8deg) scale(0); }
+    18% { transform: translate(-50%,-50%) skew(-8deg) scale(1.15); }
+    28% { transform: translate(-50%,-50%) skew(-8deg) scale(1); }
+    80% { transform: translate(-50%,-50%) skew(-8deg) scale(1); opacity: 1; }
+    100% { transform: translate(-50%,-50%) skew(-8deg) scale(1); opacity: 0; }
+  }
+  #sidebar { margin-top: 10px; max-width: 470px; text-align: center; font-size: 13px; line-height: 1.7; }
+  #msg { min-height: 22px; color: #ffd66b; font-size: 14px; margin-top: 6px; font-weight: bold; }
+  #pairchoices { display: flex; gap: 8px; justify-content: center; margin-top: 6px; flex-wrap: wrap; }
+  .pairbtn { background: #7a4a16; border-color: #ffb14d; }
+  #overlay {
+    position: fixed; inset: 0; background: rgba(8,18,28,.88); display: none; z-index: 80;
+    flex-direction: column; align-items: center; justify-content: center; gap: 14px; font-size: 18px;
+  }
+  #overlay h2 { font-size: 34px; color: #ffd66b; }
+  #burstbtn {
+    background: #5a2410; border: 2px solid #ff9d2e; color: #ffd66b; font-weight: bold;
+    border-radius: 6px; padding: 6px 18px; font-size: 14px; cursor: pointer; opacity: .35;
+  }
+  #burstbtn.ready { opacity: 1; animation: pulse .6s infinite alternate; }
+  .legend { color: #8fb6d4; font-size: 12px; }
+</style>
+</head>
+<body>
+<h1>⚓ 孤帆棋海 — 概念原型</h1>
+<div id="topbar">
+  <span>羁绊槽模式:</span>
+  <button id="modeA" class="active" onclick="setMode('A')">A·全队共享</button>
+  <button id="modeB" onclick="setMode('B')">B·单位独立</button>
+  <div id="gaugewrap"><span>🔥羁绊槽</span><div id="gaugebar"><div id="gaugefill"></div></div><span id="gaugetext">0/10</span></div>
+  <button id="burstbtn" onclick="startBurst()">⚡ 羁绊爆发</button>
+  <button id="endturn" onclick="endTurn()">结束回合 ▶</button>
+</div>
+<div id="board"></div>
+<div id="msg"></div>
+<div id="pairchoices"></div>
+<div id="sidebar">
+  <b>玩法</b>：点船员→绿格移动→红框敌人攻击。<b>相邻的船员</b>互相 +1 伤害（🔗），且攻击充能更快（+2 vs +1）。
+  槽满后点「⚡羁绊爆发」选一对相邻船员发动组合技。消灭全部敌人获胜。<br>
+  <span class="legend">⚔剑豪: 血10/移3/程1/伤3 ｜ 💣炮手: 血7/移2/程3/伤2 ｜ 敌兵: 血6/伤2/移2/程1, 每回合扑向最近船员</span><br>
+  <span class="legend">组合技 — ⚔+⚔ 双刀乱舞(周围2格全体6伤) ｜ ⚔+💣 炮剑协奏(双方所在行列5伤)</span>
+</div>
+<div id="flash"></div>
+<div id="banner"></div>
+<div id="overlay">
+  <h2 id="ovtitle"></h2>
+  <div id="ovstats"></div>
+  <button onclick="restart()">⛵ 再来一局</button>
+</div>
+
+<script>
+// PROTOTYPE - NOT FOR PRODUCTION (硬编码、无错误处理——一次性验证代码)
+const W = 8, H = 8, GAUGE_MAX = 10, UNIT_GAUGE_MAX = 5;
+let mode = 'A';
+let units, gauge, turn, bursts, totalDmg, busy, sel, burstSelecting;
+
+function initUnits() {
+  return [
+    { id:0, name:'阿斩', cls:'S', icon:'⚔', hp:10, maxhp:10, mv:3, rng:1, dmg:3, x:1, y:6, team:'crew', moved:false, attacked:false, g:0 },
+    { id:1, name:'小燕', cls:'S', icon:'⚔', hp:10, maxhp:10, mv:3, rng:1, dmg:3, x:3, y:7, team:'crew', moved:false, attacked:false, g:0 },
+    { id:2, name:'铁球', cls:'G', icon:'💣', hp:7,  maxhp:7,  mv:2, rng:3, dmg:2, x:2, y:7, team:'crew', moved:false, attacked:false, g:0 },
+    { id:3, name:'梅莉', cls:'G', icon:'💣', hp:7,  maxhp:7,  mv:2, rng:3, dmg:2, x:0, y:7, team:'crew', moved:false, attacked:false, g:0 },
+    { id:4, name:'敌兵', cls:'E', icon:'☠', hp:6, maxhp:6, mv:2, rng:1, dmg:2, x:2, y:1, team:'enemy' },
+    { id:5, name:'敌兵', cls:'E', icon:'☠', hp:6, maxhp:6, mv:2, rng:1, dmg:2, x:5, y:0, team:'enemy' },
+    { id:6, name:'敌兵', cls:'E', icon:'☠', hp:6, maxhp:6, mv:2, rng:1, dmg:2, x:6, y:2, team:'enemy' },
+    { id:7, name:'敌兵', cls:'E', icon:'☠', hp:6, maxhp:6, mv:2, rng:1, dmg:2, x:4, y:1, team:'enemy' },
+    { id:8, name:'敌兵', cls:'E', icon:'☠', hp:6, maxhp:6, mv:2, rng:1, dmg:2, x:7, y:4, team:'enemy' },
+  ];
+}
+
+function restart() {
+  units = initUnits(); gauge = 0; turn = 1; bursts = 0; totalDmg = 0;
+  busy = false; sel = null; burstSelecting = false;
+  document.getElementById('overlay').style.display = 'none';
+  msg(`第 ${turn} 回合 — 你的行动`);
+  render();
+}
+
+function setMode(m) {
+  mode = m;
+  document.getElementById('modeA').classList.toggle('active', m==='A');
+  document.getElementById('modeB').classList.toggle('active', m==='B');
+  restart();
+}
+
+const alive = t => units.filter(u => u.hp > 0 && u.team === t);
+const at = (x,y) => units.find(u => u.hp > 0 && u.x === x && u.y === y);
+const dist = (a,b) => Math.abs(a.x-b.x) + Math.abs(a.y-b.y);
+const adjacentAllies = u => alive('crew').filter(o => o !== u && dist(o,u) === 1);
+const isBonded = u => adjacentAllies(u).length > 0;
+
+function moveRange(u) {
+  // BFS, 不能穿过任何单位
+  const seen = {}; seen[u.x+','+u.y] = 0;
+  const q = [[u.x,u.y,0]]; const out = [];
+  while (q.length) {
+    const [x,y,d] = q.shift();
+    if (d === u.mv) continue;
+    for (const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]) {
+      const nx = x+dx, ny = y+dy, k = nx+','+ny;
+      if (nx<0||ny<0||nx>=W||ny>=H || k in seen || at(nx,ny)) continue;
+      seen[k] = d+1; out.push([nx,ny]); q.push([nx,ny,d+1]);
+    }
+  }
+  return out;
+}
+
+function attackTargets(u) {
+  return alive('enemy').filter(e => dist(u,e) <= u.rng);
+}
+
+// ---------- 渲染 ----------
+const board = document.getElementById('board');
+function render() {
+  board.innerHTML = '';
+  const moveOk = (sel && !sel.moved && !busy) ? moveRange(sel).map(p=>p.join(',')) : [];
+  const atkOk  = (sel && !sel.attacked && !busy) ? attackTargets(sel).map(e=>e.x+','+e.y) : [];
+  for (let y=0; y<H; y++) for (let x=0; x<W; x++) {
+    const t = document.createElement('div');
+    t.className = 'tile';
+    const k = x+','+y;
+    if (moveOk.includes(k)) t.classList.add('move-ok');
+    if (atkOk.includes(k)) t.classList.add('atk-ok');
+    t.onclick = () => clickTile(x,y);
+    const u = at(x,y);
+    if (u) {
+      const d = document.createElement('div');
+      d.className = 'unit ' + (u.team === 'crew' ? 'crew' + (u.cls==='G' ? ' gunner' : '') : 'enemy');
+      if (u === sel) d.classList.add('selected');
+      if (u.team==='crew' && u.moved && u.attacked) d.classList.add('done');
+      if (u.team==='crew' && isBonded(u)) d.classList.add('bonded');
+      if (mode==='B' && u.team==='crew' && u.g >= UNIT_GAUGE_MAX) d.classList.add('gauge-full');
+      d.innerHTML = `${u.icon}<span class="hp">${u.name} ${u.hp}/${u.maxhp}${mode==='B'&&u.team==='crew' ? ' 🔥'+u.g : ''}</span>`;
+      t.appendChild(d);
+    }
+    board.appendChild(t);
+  }
+  // 羁绊槽
+  const fill = document.getElementById('gaugefill');
+  if (mode === 'A') {
+    fill.style.width = (gauge/GAUGE_MAX*100) + '%';
+    fill.classList.toggle('full', gauge >= GAUGE_MAX);
+    document.getElementById('gaugetext').textContent = gauge + '/' + GAUGE_MAX;
+  } else {
+    const pairs = validBurstPairs();
+    fill.style.width = pairs.length ? '100%' : '0%';
+    fill.classList.toggle('full', pairs.length > 0);
+    document.getElementById('gaugetext').textContent = '单位独立(满5)';
+  }
+  document.getElementById('burstbtn').classList.toggle('ready', validBurstPairs().length > 0 && !busy);
+}
+
+function msg(s) { document.getElementById('msg').textContent = s; }
+function dmgNum(x, y, n, txt) {
+  const el = document.createElement('div');
+  el.className = 'dmgnum'; el.textContent = txt || ('-'+n);
+  el.style.left = (x*56+18)+'px'; el.style.top = (y*56-2)+'px';
+  board.appendChild(el); setTimeout(()=>el.remove(), 900);
+}
+
+// ---------- 玩家操作 ----------
+function clickTile(x, y) {
+  if (busy || burstSelecting) { if (burstSelecting) pickBurstUnit(x,y); return; }
+  const u = at(x,y);
+  if (u && u.team === 'crew') {
+    sel = (u.moved && u.attacked) ? null : u;
+    msg(sel ? `${sel.name}: ${!sel.moved?'可移动 ':''}${!sel.attacked?'可攻击':''}` : '该船员已行动完毕');
+    render(); return;
+  }
+  if (!sel) return;
+  if (!sel.moved && !u && moveRange(sel).some(p => p[0]===x && p[1]===y)) {
+    sel.x = x; sel.y = y; sel.moved = true;
+    render(); return;
+  }
+  if (!sel.attacked && u && u.team === 'enemy' && dist(sel,u) <= sel.rng) {
+    playerAttack(sel, u);
+  }
+}
+
+function charge(u, amt) {
+  if (mode === 'A') gauge = Math.min(GAUGE_MAX, gauge + amt);
+  else u.g = Math.min(UNIT_GAUGE_MAX, u.g + amt);
+}
+
+function playerAttack(a, e) {
+  const bonded = isBonded(a);
+  const dmg = a.dmg + (bonded ? 1 : 0);
+  e.hp -= dmg; totalDmg += dmg;
+  a.attacked = true; a.moved = true; // 攻击后该单位行动结束
+  charge(a, bonded ? 2 : 1);
+  dmgNum(e.x, e.y, dmg);
+  if (bonded) dmgNum(a.x, a.y, 0, '羁绊+2🔥');
+  if (e.hp <= 0) msg(`${a.name} 击沉了敌兵！`);
+  sel = null;
+  render(); checkEnd();
+}
+
+// ---------- 羁绊爆发 ----------
+function unitGaugeReady(u) { return mode === 'A' ? gauge >= GAUGE_MAX : u.g >= UNIT_GAUGE_MAX; }
+function validBurstPairs() {
+  const crew = alive('crew'); const out = [];
+  for (let i=0; i<crew.length; i++) for (let j=i+1; j<crew.length; j++) {
+    const a = crew[i], b = crew[j];
+    if (dist(a,b) !== 1) continue;
+    if (a.cls === 'G' && b.cls === 'G') continue; // 炮手×炮手无组合技
+    if (mode === 'A' && gauge < GAUGE_MAX) continue;
+    if (mode === 'B' && !(a.g >= UNIT_GAUGE_MAX && b.g >= UNIT_GAUGE_MAX)) continue;
+    out.push([a,b]);
+  }
+  return out;
+}
+
+function startBurst() {
+  const pairs = validBurstPairs();
+  if (!pairs.length || busy) {
+    msg(mode==='A' && gauge < GAUGE_MAX ? '羁绊槽未满！' : '没有可发动的相邻组合（炮手×炮手无组合技）');
+    return;
+  }
+  const box = document.getElementById('pairchoices');
+  box.innerHTML = '';
+  msg('选择发动组合技的搭档：');
+  pairs.forEach(([a,b]) => {
+    const btn = document.createElement('button');
+    btn.className = 'pairbtn';
+    const comboName = (a.cls==='S' && b.cls==='S') ? '双刀乱舞' : '炮剑协奏';
+    btn.textContent = `${a.name}+${b.name}：${comboName}`;
+    btn.onclick = () => { box.innerHTML=''; executeBurst(a,b); };
+    box.appendChild(btn);
+  });
+}
+function pickBurstUnit() {} // 占位（用按钮选择，无需棋盘点选）
+
+function executeBurst(a, b) {
+  busy = true; bursts++;
+  const isSS = a.cls === 'S' && b.cls === 'S';
+  const name = isSS ? '双刀乱舞' : '炮剑协奏';
+  // 演出: 变色→横幅→闪白→震屏
+  document.body.classList.add('burst-mode');
+  const banner = document.getElementById('banner');
+  banner.textContent = '⚡ ' + name + '！';
+  banner.classList.add('show');
+  setTimeout(() => {
+    document.getElementById('flash').classList.add('on');
+    document.body.classList.add('shake');
+    let targets;
+    if (isSS) targets = alive('enemy').filter(e =>
+      Math.max(Math.abs(e.x-a.x),Math.abs(e.y-a.y)) <= 2 || Math.max(Math.abs(e.x-b.x),Math.abs(e.y-b.y)) <= 2);
+    else targets = alive('enemy').filter(e =>
+      e.x===a.x || e.y===a.y || e.x===b.x || e.y===b.y);
+    const dmg = isSS ? 6 : 5;
+    targets.forEach(e => { e.hp -= dmg; totalDmg += dmg; dmgNum(e.x, e.y, dmg); });
+    if (mode === 'A') gauge = 0; else { a.g = 0; b.g = 0; }
+    msg(targets.length ? `${name} 命中 ${targets.length} 名敌人！` : `${name} 放空了…站位再算准一点！`);
+    render();
+  }, 650);
+  setTimeout(() => {
+    document.body.classList.remove('burst-mode','shake');
+    document.getElementById('flash').classList.remove('on');
+    banner.classList.remove('show');
+    busy = false; render(); checkEnd();
+  }, 1500);
+}
+
+// ---------- 敌人回合 ----------
+function endTurn() {
+  if (busy) return;
+  sel = null; busy = true;
+  msg('敌人回合…');
+  render();
+  const es = alive('enemy');
+  let i = 0;
+  function step() {
+    if (i >= es.length) {
+      alive('crew').forEach(u => { u.moved = false; u.attacked = false; });
+      turn++; busy = false;
+      msg(`第 ${turn} 回合 — 你的行动`);
+      render(); checkEnd(); return;
+    }
+    const e = es[i++];
+    if (e.hp <= 0) { step(); return; }
+    // 朝最近船员移动 mv 格(贪心逐格), 相邻则攻击
+    const crew = alive('crew');
+    if (!crew.length) { step(); return; }
+    let target = crew.reduce((m,c) => dist(e,c) < dist(e,m) ? c : m, crew[0]);
+    for (let s=0; s<e.mv && dist(e,target) > 1; s++) {
+      const opts = [[1,0],[-1,0],[0,1],[0,-1]]
+        .map(([dx,dy]) => [e.x+dx, e.y+dy])
+        .filter(([x,y]) => x>=0&&y>=0&&x<W&&y<H && !at(x,y))
+        .sort((p,q) => (Math.abs(p[0]-target.x)+Math.abs(p[1]-target.y)) - (Math.abs(q[0]-target.x)+Math.abs(q[1]-target.y)));
+      if (opts.length && (Math.abs(opts[0][0]-target.x)+Math.abs(opts[0][1]-target.y)) < dist(e,target)) {
+        e.x = opts[0][0]; e.y = opts[0][1];
+      } else break;
+    }
+    if (dist(e, target) <= e.rng) {
+      target.hp -= e.dmg;
+      charge(target, 1); // 受击+1充能
+      dmgNum(target.x, target.y, e.dmg);
+    }
+    render();
+    setTimeout(step, 260);
+  }
+  setTimeout(step, 300);
+}
+
+// ---------- 胜负 ----------
+function checkEnd() {
+  if (busy) {}
+  if (!alive('enemy').length) return showEnd(true);
+  if (!alive('crew').length) return showEnd(false);
+}
+function showEnd(win) {
+  busy = true;
+  document.getElementById('ovtitle').textContent = win ? '🏴‍☠️ 全员击沉！胜利！' : '💀 船员全灭…';
+  document.getElementById('ovstats').innerHTML =
+    `用时 <b>${turn}</b> 回合 ｜ 羁绊爆发 <b>${bursts}</b> 次 ｜ 总伤害 <b>${totalDmg}</b><br>
+     <span style="font-size:13px;color:#8fb6d4">模式 ${mode==='A'?'A·共享槽':'B·独立槽'} — 想对比节奏的话，换个模式再来一局</span>`;
+  document.getElementById('overlay').style.display = 'flex';
+}
+
+restart();
+</script>
+</body>
+</html>
