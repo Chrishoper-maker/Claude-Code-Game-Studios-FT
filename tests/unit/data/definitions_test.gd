@@ -1,5 +1,5 @@
 # Foundation 数据类单元测试（ADR-0003 继承层级与字段）。
-# ⚠️ 未实跑：撰写时本机未装 GdUnit4，仅用稳定核心断言。装好后首跑确认。
+# ✅ 实测通过（GdUnit4 v6.1.3 / Godot 4.6.3，2026-06-19）：4/4 PASSED。
 extends GdUnitTestSuite
 
 func test_crew_definition_is_a_unit_definition() -> void:

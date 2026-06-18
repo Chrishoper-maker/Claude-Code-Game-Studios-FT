@@ -78,7 +78,10 @@ jobs:
         run: |
           set -euo pipefail
           # GdUnit4 官方命令行；--continue 跑完全部再汇总，失败返回非零退出码 → 阻断合并。
+          # ★ --ignoreHeadlessMode：GdUnit4 默认拒绝无头（怕 UI/输入测试失真，退出 103）；
+          #   本项目逻辑测试不碰 UI/输入，CI 无头必须显式跳过该检查（实测确认）。
           godot --headless -s res://addons/gdUnit4/bin/GdUnitCmdTool.gd \
+            --ignoreHeadlessMode \
             --continue \
             -a res://tests/unit \
             -a res://tests/integration

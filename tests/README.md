@@ -32,7 +32,8 @@ tests/
 ```bash
 # 全部测试（无头）。★ 全新 clone 须先 --import 生成全局类名缓存，否则 class_name 报 "Could not find type"
 godot --headless --import
-godot --headless -s res://addons/gdUnit4/bin/GdUnitCmdTool.gd --continue -a res://tests
+# --ignoreHeadlessMode：GdUnit4 默认拒绝无头（退出 103）；纯逻辑测试不碰 UI/输入，安全跳过
+godot --headless -s res://addons/gdUnit4/bin/GdUnitCmdTool.gd --ignoreHeadlessMode --continue -a res://tests
 ```
 
 编辑器内：打开 gdUnit4 面板（底部 dock）→ 选目录/套件 → Run。

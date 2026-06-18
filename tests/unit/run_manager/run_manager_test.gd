@@ -1,6 +1,5 @@
 # RunManager 状态机单元测试（ADR-0004 验证条 2/4 + ADR-0002 win 分支）。
-# ⚠️ 未实跑：撰写时本机未装 GdUnit4，仅用稳定核心断言（assert_str/int/bool）。
-#   首次装好 GdUnit4 后运行确认；若 API 有微调，多为 1 行修正。
+# ✅ 实测通过（GdUnit4 v6.1.3 / Godot 4.6.3，2026-06-19）：7/7 PASSED。
 # 仅测无场景依赖的纯逻辑——confirm_deploy/_on_battle_won 的非终局分支会调
 #   SceneManager.goto_*（assert 未赋值场景）故不在此测。
 extends GdUnitTestSuite
