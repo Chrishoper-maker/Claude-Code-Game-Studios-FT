@@ -1,0 +1,37 @@
+; Engine configuration for 孤帆棋海 (Grand Line Gambit)
+; 生产工程根。Godot 4.6.3 / Forward+ / GDScript。
+;
+; ⚠️ autoload 暂空：ADR-0002 规定 5 个 autoload（src/autoloads/*.gd）须按序注册——
+;   1. EventBus（信号总线，必须最先）   2. UnitDataManager   3. MapDataManager
+;   4. RunManager                        5. SceneManager（场景切换，必须最后）
+;   这些脚本将在 foundation 实现 epic 落地后加入下方 [autoload] 节。
+;   在此之前留空，避免引用不存在脚本导致导入失败。
+;
+; 主场景同理暂未设（无场景）。GdUnit4 安装后会自行向本文件追加 [editor_plugins]。
+
+config_version=5
+
+[application]
+
+config/name="孤帆棋海 (Grand Line Gambit)"
+config/description="网格战棋 · 站位充能 → 相邻羁绊爆发。PC（Steam/Epic）。"
+config/features=PackedStringArray("4.6", "Forward Plus")
+config/icon="res://icon.svg"
+
+[display]
+
+window/size/viewport_width=1920
+window/size/viewport_height=1080
+window/stretch/mode="canvas_items"
+window/stretch/aspect="expand"
+
+[physics]
+
+; technical-preferences：极少使用物理（网格战棋，ADR-0007 单位零物理体）。
+; 显式用内置 GodotPhysics（而非 4.6 新默认 Jolt），与 technical-preferences 一致。
+3d/physics_engine="GodotPhysics"
+
+[rendering]
+
+renderer/rendering_method="forward_plus"
+renderer/rendering_method.mobile="gl_compatibility"
