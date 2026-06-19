@@ -49,6 +49,10 @@ func clear_round_statuses() -> void:
 func register_attack_modifier(attacker_id: int, bonus: int) -> void:
 	_pending_modifiers[attacker_id] = _pending_modifiers.get(attacker_id, 0) + bonus
 
+# 读取累计注入值（未钳制；供 AdjacencyBond 测试观测 + HUD 预测伤害）。
+func get_pending_modifier(attacker_id: int) -> int:
+	return _pending_modifiers.get(attacker_id, 0)
+
 # ── Rule 1 触发条件 + Rule 11 炮手最小射程 ──
 func is_valid_attack(attacker_id: int, target_id: int) -> bool:
 	var a := _turn_manager.get_unit(attacker_id)
