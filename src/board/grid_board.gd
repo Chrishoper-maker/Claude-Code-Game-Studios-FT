@@ -97,6 +97,16 @@ func get_reachable_cells(pos: Vector2i, move_range: int) -> Array[Vector2i]:
 			queue.append(nxt)
 	return result
 
+# ── 攻击驻足格（enemy-ai 决策树）：move_range 内可达 且 目标进入 attack_range 的空格 ──
+# 确定性排序（x*8+y 升序），AI 取 staging[0] 即最优落点。
+func get_attack_staging_cells(mover_pos: Vector2i, move_range: int, target_pos: Vector2i, attack_range: int) -> Array[Vector2i]:
+	var result: Array[Vector2i] = []
+	for cell in get_reachable_cells(mover_pos, move_range):
+		if in_attack_range(cell, target_pos, attack_range):
+			result.append(cell)
+	result.sort_custom(func(a: Vector2i, b: Vector2i) -> bool: return (a.x * 8 + a.y) < (b.x * 8 + b.y))
+	return result
+
 # 世界坐标映射委托 ADR-0006 GridCoordMapper（GDD §10：映射属实现层）。
 func grid_to_world(_pos: Vector2i) -> Vector3: return Vector3.ZERO     # TODO(ADR-0006)
 func world_to_grid(_world: Vector3) -> Vector2i: return Vector2i.ZERO  # TODO(ADR-0006)
