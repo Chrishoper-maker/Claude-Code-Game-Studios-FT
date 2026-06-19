@@ -1,0 +1,64 @@
+[gd_resource type="Resource" script_class="MapDefinition" load_steps=12 format=3]
+
+[ext_resource type="Script" path="res://src/data/map_definition.gd" id="1"]
+[ext_resource type="Script" path="res://src/data/terrain_cell.gd" id="2"]
+[ext_resource type="Script" path="res://src/data/enemy_slot_definition.gd" id="3"]
+
+[sub_resource type="Resource" id="t1"]
+script = ExtResource("2")
+pos = Vector2i(1, 1)
+type = "BLOCKED"
+
+[sub_resource type="Resource" id="t2"]
+script = ExtResource("2")
+pos = Vector2i(1, 2)
+type = "BLOCKED"
+
+[sub_resource type="Resource" id="t3"]
+script = ExtResource("2")
+pos = Vector2i(5, 1)
+type = "BLOCKED"
+
+[sub_resource type="Resource" id="t4"]
+script = ExtResource("2")
+pos = Vector2i(5, 2)
+type = "BLOCKED"
+
+[sub_resource type="Resource" id="s1"]
+script = ExtResource("3")
+unit_definition_id = "enemy_melee_tier1"
+grid_position = Vector2i(2, 0)
+behavior_type = "MELEE"
+home_pos = Vector2i(-1, -1)
+
+[sub_resource type="Resource" id="s2"]
+script = ExtResource("3")
+unit_definition_id = "enemy_ranged_tier1"
+grid_position = Vector2i(7, 0)
+behavior_type = "RANGED"
+home_pos = Vector2i(-1, -1)
+
+[sub_resource type="Resource" id="s3"]
+script = ExtResource("3")
+unit_definition_id = "enemy_swarmer_tier1"
+grid_position = Vector2i(3, 3)
+behavior_type = "SWARMER"
+home_pos = Vector2i(-1, -1)
+
+[sub_resource type="Resource" id="s4"]
+script = ExtResource("3")
+unit_definition_id = "enemy_guardian_tier1"
+grid_position = Vector2i(7, 3)
+behavior_type = "GUARDIAN"
+home_pos = Vector2i(7, 3)
+
+[resource]
+script = ExtResource("1")
+map_id = "battle_map_001"
+display_name = "狭窄港湾"
+terrain_data = Array[TerrainCell]([SubResource("t1"), SubResource("t2"), SubResource("t3"), SubResource("t4")])
+deploy_zone = Array[Vector2i]([Vector2i(0, 6), Vector2i(1, 6), Vector2i(2, 6), Vector2i(3, 6), Vector2i(4, 6), Vector2i(5, 6), Vector2i(0, 7), Vector2i(1, 7), Vector2i(2, 7), Vector2i(3, 7), Vector2i(4, 7), Vector2i(5, 7)])
+enemy_roster = Array[EnemySlotDefinition]([SubResource("s1"), SubResource("s2"), SubResource("s3"), SubResource("s4")])
+island_tier = 1
+annotated_engagement_distance = {}
+map_scene_id = ""

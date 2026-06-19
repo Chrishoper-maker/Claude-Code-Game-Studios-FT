@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="EnemyDefinition" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://src/data/enemy_definition.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "enemy_swarmer_tier1"
+display_name = "群攻兵"
+faction = "enemy"
+unit_class = "swordsman"
+max_hp = 4
+move_range = 3
+attack_range = 1
+base_damage = 2
+class_action_id = ""
+behavior_type = "SWARMER"
+home_pos = Vector2i(-1, -1)
+threat_tier = 1

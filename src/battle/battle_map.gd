@@ -22,11 +22,19 @@ const MAP_SEPARATION_MIN := 3          # F4
 const RANGED_CORRIDOR_MIN_LENGTH := 3  # F6
 const BOARD_SIZE := 8
 
+const MVP_MAP_ID := "battle_map_001"           # MVP：固定单图（航线系统接管前）
+
 var _map_state: MapState = MapState.MAP_UNLOADED
 var _valid_deploy_cells: Array[Vector2i] = []  # 加载时扣除 BLOCKED 重叠后的有效部署格
 var _blocked_cells: Array[Vector2i] = []       # 本图写入棋盘的 BLOCKED 格（reset 时清）
 var _deployed_ids: Array[int] = []             # 已 place 的敌方 battle_id（reset 时移除）
 var _grid_board: GridBoard = null              # 加载时注入引用（reset 复用）
+var _turn_manager: TurnManager = null          # 场景胶水注入（load_map 用）
+
+# BattleScene._ready 注入兄弟节点引用（场景胶水）。
+func setup(grid_board: GridBoard, turn_manager: TurnManager) -> void:
+	_grid_board = grid_board
+	_turn_manager = turn_manager
 
 func get_map_state() -> MapState:
 	return _map_state
@@ -42,11 +50,14 @@ func get_deploy_zone_available(occupied: Array = []) -> Array[Vector2i]:
 			out.append(c)
 	return out
 
-# 由 BattleScene._ready() 调用（ADR-0002 / architecture.md 4d）。
+# 由 BattleScene._ready() 调用（ADR-0002 / architecture.md 4d）。需先 setup() 注入引用。
+# MVP：忽略 island_index，固定加载 battle_map_001（航线系统接管后按 index 选图）。
 func load_map(_island_index: int) -> void:
-	# TODO(battle-map scene-glue story)：解析兄弟 GridBoard/TurnManager 节点 +
-	#   MapDataManager.get_map(island_index)（待 .tres 数据）→ 调 load_map_definition。
-	pass
+	var map_def := MapDataManager.get_map(MVP_MAP_ID)
+	if map_def == null:
+		EventBus.map_load_failed.emit(&"map_not_found")
+		return
+	load_map_definition(map_def, _grid_board, _turn_manager)  # unit_lookup 默认走 UnitDataManager
 
 # 部署核心（Rule 3 步骤 1-5）：验证 → 写地形 → 生成/注册/place 敌人 → 注册部署区 → map_loaded。
 # 依赖注入 grid_board / turn_manager / unit_lookup（coding-standards DI）。返回是否成功。
