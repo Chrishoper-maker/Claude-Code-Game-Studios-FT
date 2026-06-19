@@ -19,8 +19,12 @@ var _battle_state: BattleState = BattleState.SETUP
 var _current_unit_id: int = -1              # 状态参数，仅 ACTIVE_TURN 有效
 var round_count: int = 0
 
-# §135 拥有状态（stub，turn-management story 落地）
+# §135 拥有状态：单位注册表 + 存活列表（battle_id 为数值句柄）
 var _alive_list: Array[int] = []
+var _units: Dictionary = {}        # int battle_id → UnitInstance
+var _next_battle_id: int = 0       # 顺序分配；< 1000 约束（公式1 tiebreak 防碰撞）
+
+const BATTLE_ID_MAX := 1000        # turn-management GDD §111/113：unit_id 必须 < 1000
 
 # 由 BattleScene._ready() 在子系统就绪后调用（ADR-0002 / architecture.md 4d）
 func start_battle() -> void:
@@ -75,10 +79,44 @@ func get_current_unit_id() -> int:
 func get_current_round() -> int:
 	return round_count
 
-# ── §135 玩法接口（stub — turn-management story）──
-func mark_has_moved(_id: int) -> void: pass
-func mark_has_acted(_id: int) -> void: pass
-func mark_has_used_verb(_id: int) -> void: pass
-func remove_from_alive(_id: int) -> void: pass
-func get_alive_allies() -> Array[int]: return []
-func get_alive_enemies() -> Array[int]: return []
+# ── §135 单位注册表 + 玩法接口 ──
+
+# 注册一个 UnitInstance，分配并返回数值 battle_id（部署阶段由 BattleMap/部署系统调用）。
+# 注册即进 alive_list；battle_id 顺序唯一，断言 < 1000（GDD §113 运行时防御，拒绝静默降级）。
+func register_unit(unit: UnitInstance) -> int:
+	assert(_next_battle_id < BATTLE_ID_MAX, "TurnManager.register_unit: battle_id 超出 < 1000 约束")
+	var battle_id := _next_battle_id
+	_next_battle_id += 1
+	_units[battle_id] = unit
+	_alive_list.append(battle_id)
+	return battle_id
+
+func get_unit(battle_id: int) -> UnitInstance:
+	return _units.get(battle_id, null)
+
+func mark_has_moved(id: int) -> void:
+	if _units.has(id): _units[id].has_moved = true
+
+func mark_has_acted(id: int) -> void:
+	if _units.has(id): _units[id].has_acted = true
+
+func mark_has_used_verb(id: int) -> void:
+	if _units.has(id): _units[id].has_used_verb = true
+
+# 从存活列表移除（幂等：重复调用安全；erase 缺席不报错）。
+func remove_from_alive(id: int) -> void:
+	_alive_list.erase(id)
+
+func get_alive_allies() -> Array[int]:
+	return _alive_by_faction("crew")
+
+func get_alive_enemies() -> Array[int]:
+	return _alive_by_faction("enemy")
+
+func _alive_by_faction(faction: String) -> Array[int]:
+	var out: Array[int] = []
+	for id in _alive_list:
+		var u: UnitInstance = _units.get(id, null)
+		if u != null and u.definition.faction == faction:
+			out.append(id)
+	return out
