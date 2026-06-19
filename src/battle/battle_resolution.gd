@@ -1,13 +1,234 @@
-# 战斗解算（combat math，architecture.md §142 / battle-resolution-system）。
+# 战斗解算（combat math，architecture.md §142/§389 / battle-resolution-system / ADR-0005）。
+# 有状态 Node：unit_statuses + pending_modifiers。注入 GridBoard + TurnManager（DI）。
+# current_hp 与 unit_statuses 的唯一改值者；行动点/alive 列表归 TurnManager（调其接口）。
 # register_attack_modifier 是 ADR-0001 唯一允许的直连例外（AdjacencyBond 单向注入）。
-# 骨架 stub：接口就位，伤害公式/动词执行/状态实现留 battle-resolution story（需先立项 ADR-0005）。
+# 普通攻击核心（Rule 1/9/10/11）已实现；六动词（Rule 3-8）实现见 execute_* 方法。
 class_name BattleResolution
 extends Node
 
-func is_valid_attack(_attacker_id: int, _target_id: int) -> bool: return false
-func execute_attack(_attacker_id: int, _target_id: int) -> void: pass
-func execute_verb(_id: int, _verb: String, _target_id: int) -> void: pass
-# ADR-0001 唯一直连例外：AdjacencyBond 注入相邻羁绊修正器
-func register_attack_modifier(_id: int, _bonus: int) -> void: pass
-func get_unit_status(_id: int, _status: String) -> int: return 0
-func apply_status(_id: int, _status: String) -> void: pass
+enum VerbType { SLASH, CANNON, GUARD, HEAL, MOVE, AURA }
+
+const MAX_MODIFIER_SUM := 2       # 相邻羁绊修正器注入上限（防破坏两发击杀）
+const AURA_VALUE := 1             # 光环独立第三项加成
+const GUARD_DIVISOR := 2          # GUARDED 减伤除数（floor）
+const HEAL_AMOUNT := 3            # 医师·愈固定治疗量
+const PUSH_DISTANCE := 2          # 航海士·移最大位移
+const GUNNER_MIN_RANGE := 2       # 炮手普通攻击最小曼哈顿射程（Rule 11）
+const DOWNED_SENTINEL := Vector2i(-1, -1)
+const STATUS_GUARDED := &"GUARDED"
+const STATUS_AURA := &"AURA_BONUS"
+
+var _grid_board: GridBoard
+var _turn_manager: TurnManager
+var _pending_modifiers: Dictionary = {}   # int attacker_id → int 累加 bonus（每次攻击缓冲）
+var _unit_statuses: Dictionary = {}        # int unit_id → Dictionary[StringName → bool]
+
+func setup(grid_board: GridBoard, turn_manager: TurnManager) -> void:
+	_grid_board = grid_board
+	_turn_manager = turn_manager
+
+# ── 状态（ADR D6）──
+func get_unit_status(unit_id: int, status: StringName) -> bool:
+	return _unit_statuses.get(unit_id, {}).get(status, false)
+
+func apply_status(unit_id: int, status: StringName) -> void:
+	if not _unit_statuses.has(unit_id):
+		_unit_statuses[unit_id] = {}
+	_unit_statuses[unit_id][status] = true
+
+func _consume_status(unit_id: int, status: StringName) -> void:
+	if _unit_statuses.has(unit_id):
+		_unit_statuses[unit_id].erase(status)
+
+# ROUND_END 仅清 GUARDED（AURA_BONUS 跨轮保留）。
+func clear_round_statuses() -> void:
+	for id in _unit_statuses:
+		_unit_statuses[id].erase(STATUS_GUARDED)
+
+# ── 修正器注入（Rule 10 / ADR D5 直连例外）──
+func register_attack_modifier(attacker_id: int, bonus: int) -> void:
+	_pending_modifiers[attacker_id] = _pending_modifiers.get(attacker_id, 0) + bonus
+
+# ── Rule 1 触发条件 + Rule 11 炮手最小射程 ──
+func is_valid_attack(attacker_id: int, target_id: int) -> bool:
+	var a := _turn_manager.get_unit(attacker_id)
+	var t := _turn_manager.get_unit(target_id)
+	if a == null or t == null:
+		return false
+	if not a.is_alive or not t.is_alive:
+		return false
+	if a.has_acted:
+		return false
+	if attacker_id == target_id:
+		return false
+	if a.definition.faction == t.definition.faction:
+		return false
+	if not _grid_board.in_attack_range(a.grid_position, t.grid_position, a.definition.attack_range):
+		return false
+	if a.definition.unit_class == "gunner" and GridBoard.manhattan(a.grid_position, t.grid_position) < GUNNER_MIN_RANGE:
+		return false
+	return true
+
+# ── Rule 1 普通攻击执行（步骤 0-11）──
+func execute_attack(attacker_id: int, target_id: int) -> void:
+	var a := _turn_manager.get_unit(attacker_id)
+	var t := _turn_manager.get_unit(target_id)
+	EventBus.attack_initiated.emit(str(attacker_id), "normal_attack")  # 0：触发通知（同步，羁绊在回调注入）
+	var dmg := _compute_attack_damage(attacker_id, a)                  # 1-3：修正器(钳制)+光环(消耗)
+	var final_damage := _apply_guard(target_id, dmg)                   # 4：GUARDED 减伤+消耗
+	var new_hp := maxi(0, t.current_hp - final_damage)                 # 5
+	t.current_hp = new_hp                                              # 6
+	_pending_modifiers.erase(attacker_id)                             # 7：修正器仅本次有效
+	EventBus.attack_executed.emit(attacker_id, target_id, final_damage)  # 8
+	EventBus.damage_dealt.emit(target_id, final_damage, new_hp)        # 9
+	_turn_manager.mark_has_acted(attacker_id)                          # 10
+	if new_hp == 0:                                                    # 11
+		resolve_unit_downed(target_id)
+
+# 伤害管线（ADR D2）：base + min(modifier, cap) + 独立 aura（不受 cap）。消耗 AURA_BONUS。
+func _compute_attack_damage(attacker_id: int, a: UnitInstance) -> int:
+	var modifier_sum := mini(_pending_modifiers.get(attacker_id, 0), MAX_MODIFIER_SUM)
+	var aura := 0
+	if get_unit_status(attacker_id, STATUS_AURA):
+		aura = AURA_VALUE
+		_consume_status(attacker_id, STATUS_AURA)
+	return a.definition.base_damage + modifier_sum + aura
+
+# GUARDED 减伤（floor）+ 消耗（不区分来源阵营）。
+func _apply_guard(target_id: int, dmg: int) -> int:
+	if get_unit_status(target_id, STATUS_GUARDED):
+		_consume_status(target_id, STATUS_GUARDED)
+		return dmg / GUARD_DIVISOR
+	return dmg
+
+# ── Rule 9 击倒解算（7 步，顺序固定；步骤 1-6 必在 7 之前）──
+func resolve_unit_downed(unit_id: int) -> void:
+	var u := _turn_manager.get_unit(unit_id)
+	_turn_manager.remove_from_alive(unit_id)   # 1
+	u.is_alive = false                         # 2
+	u.grid_position = DOWNED_SENTINEL          # 3
+	_grid_board.remove_unit(unit_id)           # 4
+	_pending_modifiers.erase(unit_id)          # 5
+	_unit_statuses.erase(unit_id)              # 6
+	EventBus.unit_downed.emit(unit_id)         # 7
+
+# ── 六动词（Rule 3-8）──
+const _DIRS_4: Array[Vector2i] = [Vector2i(0, -1), Vector2i(0, 1), Vector2i(-1, 0), Vector2i(1, 0)]  # 上下左右
+
+# 分发器（架构 §389 execute_verb；方向型动词从 unit→target 推导基本方向）。
+func execute_verb(unit_id: int, verb: VerbType, target_id: int) -> void:
+	match verb:
+		VerbType.SLASH: execute_slash(unit_id)
+		VerbType.AURA: execute_aura(unit_id)
+		VerbType.GUARD: execute_guard(unit_id, target_id)
+		VerbType.HEAL: execute_heal(unit_id, target_id)
+		VerbType.CANNON: execute_cannon(unit_id, _cardinal_toward(unit_id, target_id))
+		VerbType.MOVE: execute_displace(unit_id, target_id, _cardinal_toward(unit_id, target_id))
+
+# Rule 3 斩：相邻 AoE，可受修正器/光环（与普通攻击同管线，快照后逐目标减伤）。
+func execute_slash(attacker_id: int) -> void:
+	var a := _turn_manager.get_unit(attacker_id)
+	EventBus.attack_initiated.emit(str(attacker_id), "slash")  # 同步：羁绊在回调注入
+	var modifier_sum := mini(_pending_modifiers.get(attacker_id, 0), MAX_MODIFIER_SUM)
+	var has_aura := get_unit_status(attacker_id, STATUS_AURA)
+	var aura := AURA_VALUE if has_aura else 0
+	var targets: Array[int] = []
+	for nid in _grid_board.get_adjacents(a.grid_position):
+		var n := _turn_manager.get_unit(nid)
+		if n != null and n.is_alive and n.definition.faction != a.definition.faction:
+			targets.append(nid)
+	var pre_guard := 0
+	if not targets.is_empty():
+		pre_guard = a.definition.base_damage + modifier_sum + aura
+		for tid in targets:
+			var t := _turn_manager.get_unit(tid)
+			var fd := _apply_guard(tid, pre_guard)
+			var new_hp := maxi(0, t.current_hp - fd)
+			t.current_hp = new_hp
+			EventBus.attack_executed.emit(attacker_id, tid, fd)
+			EventBus.damage_dealt.emit(tid, fd, new_hp)
+			if new_hp == 0:
+				resolve_unit_downed(tid)
+	_pending_modifiers.erase(attacker_id)            # ⑦
+	if has_aura:                                      # ⑧
+		_consume_status(attacker_id, STATUS_AURA)
+	EventBus.slash_executed.emit(str(attacker_id), targets, pre_guard)
+	_turn_manager.mark_has_used_verb(attacker_id)
+
+# Rule 4 轰：穿透直线，不分阵营，仅 base 伤害（无修正器/光环），不 emit attack_executed。
+func execute_cannon(attacker_id: int, direction: Vector2i) -> void:
+	var a := _turn_manager.get_unit(attacker_id)
+	var hits: Array[int] = []
+	var cell := a.grid_position
+	for _i in a.definition.attack_range:
+		cell += direction
+		if not _grid_board.in_bounds(cell):
+			break
+		var uid := _grid_board.get_cell(cell)
+		if uid != GridBoard.EMPTY:
+			var u := _turn_manager.get_unit(uid)
+			if u != null and u.is_alive:
+				hits.append(uid)
+	var base_fire := a.definition.base_damage
+	for tid in hits:
+		var t := _turn_manager.get_unit(tid)
+		var fd := _apply_guard(tid, base_fire)
+		var new_hp := maxi(0, t.current_hp - fd)
+		t.current_hp = new_hp
+		EventBus.damage_dealt.emit(tid, fd, new_hp)
+		if new_hp == 0:
+			resolve_unit_downed(tid)
+	EventBus.cannon_executed.emit(str(attacker_id), _DIRS_4.find(direction), hits, base_fire)
+	_turn_manager.mark_has_used_verb(attacker_id)
+
+# Rule 5 挡：目标获 GUARDED。
+func execute_guard(caster_id: int, target_id: int) -> void:
+	apply_status(target_id, STATUS_GUARDED)
+	EventBus.guard_applied.emit(target_id)
+	_turn_manager.mark_has_used_verb(caster_id)
+
+# Rule 6 愈：+HEAL_AMOUNT，钳制 max_hp。
+func execute_heal(caster_id: int, target_id: int) -> void:
+	var t := _turn_manager.get_unit(target_id)
+	var new_hp := mini(t.current_hp + HEAL_AMOUNT, t.definition.max_hp)
+	var amount := new_hp - t.current_hp
+	t.current_hp = new_hp
+	EventBus.heal_executed.emit(target_id, amount)
+	_turn_manager.mark_has_used_verb(caster_id)
+
+# Rule 7 移：沿方向逐格推 ≤PUSH_DISTANCE，遇边界/障碍/占用停。
+func execute_displace(caster_id: int, target_id: int, direction: Vector2i) -> void:
+	var t := _turn_manager.get_unit(target_id)
+	var from_pos := t.grid_position
+	var dest := from_pos
+	for _i in PUSH_DISTANCE:
+		var nxt := dest + direction
+		if not _grid_board.is_empty(nxt):
+			break
+		dest = nxt
+	if dest != from_pos:
+		_grid_board.forced_move_unit(target_id, dest)
+		t.grid_position = dest
+	EventBus.displacement_executed.emit(target_id, from_pos, dest)
+	_turn_manager.mark_has_used_verb(caster_id)
+
+# Rule 8 奏：相邻友方（不含自身）获 AURA_BONUS。
+func execute_aura(caster_id: int) -> void:
+	var a := _turn_manager.get_unit(caster_id)
+	var buffed: Array[int] = []
+	for nid in _grid_board.get_adjacents(a.grid_position):
+		var n := _turn_manager.get_unit(nid)
+		if n != null and n.is_alive and n.definition.faction == a.definition.faction:
+			apply_status(nid, STATUS_AURA)
+			buffed.append(nid)
+	EventBus.aura_performed.emit(str(caster_id), buffed, AURA_VALUE)
+	_turn_manager.mark_has_used_verb(caster_id)
+
+# 从 unit→target 推导最近基本方向（分发器用；主轴优先）。
+func _cardinal_toward(unit_id: int, target_id: int) -> Vector2i:
+	var u := _turn_manager.get_unit(unit_id)
+	var t := _turn_manager.get_unit(target_id)
+	var delta := t.grid_position - u.grid_position
+	if absi(delta.x) >= absi(delta.y):
+		return Vector2i(signi(delta.x), 0)
+	return Vector2i(0, signi(delta.y))
