@@ -19,6 +19,44 @@ func setup(grid_board: GridBoard, turn_manager: TurnManager, battle_resolution: 
 	_grid_board = grid_board
 	_turn_manager = turn_manager
 	_battle_resolution = battle_resolution
+	if not EventBus.round_started.is_connected(_on_round_started):
+		EventBus.round_started.connect(_on_round_started)            # Rule 1 全明示声明
+	if not EventBus.enemy_turn_started.is_connected(_on_enemy_turn_started):
+		EventBus.enemy_turn_started.connect(_on_enemy_turn_started)  # Rule 3 执行
+
+# ── Rule 1：ROUND_START 为所有存活敌方声明意图（HUD 全明示）──
+func _on_round_started(_round_count: int) -> void:
+	_intent_map.clear()
+	for eid in _turn_manager.get_alive_enemies():
+		var intent := decide_intent(eid)
+		_intent_map[eid] = intent
+		EventBus.intent_declared.emit(eid, intent)
+
+# ── Rule 3/4：敌方 ACTIVE_TURN 执行意图（重算当前棋盘以内含过期处理），完成后通知回合管理 ──
+func _on_enemy_turn_started(unit_id: int) -> void:
+	var intent := decide_intent(unit_id)   # 重算 = 天然 stale-free（MVP；声明用于 HUD）
+	EventBus.intent_declared.emit(unit_id, intent)
+	_execute_intent(intent)
+	EventBus.enemy_actions_completed.emit(unit_id)
+
+func _execute_intent(intent: IntentRecord) -> void:
+	match intent.intent_type:
+		IntentRecord.IntentType.INTENT_WAIT:
+			_turn_manager.mark_has_acted(intent.unit_id)
+		IntentRecord.IntentType.INTENT_MOVE:
+			_apply_move(intent.unit_id, intent.target_pos)
+		IntentRecord.IntentType.INTENT_ATTACK:
+			_battle_resolution.execute_attack(intent.unit_id, intent.target_id)
+		IntentRecord.IntentType.INTENT_MOVE_ATTACK:
+			_apply_move(intent.unit_id, intent.target_pos)
+			if _battle_resolution.is_valid_attack(intent.unit_id, intent.target_id):
+				_battle_resolution.execute_attack(intent.unit_id, intent.target_id)
+
+func _apply_move(unit_id: int, dest: Vector2i) -> void:
+	var u := _turn_manager.get_unit(unit_id)
+	_grid_board.forced_move_unit(unit_id, dest)
+	u.grid_position = dest
+	_turn_manager.mark_has_moved(unit_id)
 
 # ── Rule 5 目标选择子程序 ──
 

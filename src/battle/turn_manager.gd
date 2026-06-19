@@ -36,7 +36,14 @@ func start_battle() -> void:
 	EventBus.battle_started.emit()
 	if not EventBus.unit_downed.is_connected(_on_unit_downed):
 		EventBus.unit_downed.connect(_on_unit_downed)   # 胜利即时检测（敌全灭）
+	if not EventBus.enemy_actions_completed.is_connected(_on_enemy_actions_completed):
+		EventBus.enemy_actions_completed.connect(_on_enemy_actions_completed)  # 敌方回合结束推进
 	_begin_round()
+
+# 跨 GDD 合同：AI 执行完敌方意图后 emit enemy_actions_completed → 结束该敌方 ACTIVE_TURN。
+func _on_enemy_actions_completed(id: int) -> void:
+	if _battle_state == BattleState.ACTIVE_TURN and _current_unit_id == id:
+		end_current_turn()
 
 # ROUND_START：重置行动点 + 建先攻队列 + 开第一个单位回合（队列空则停在 ROUND_START）。
 func _begin_round() -> void:
@@ -118,6 +125,9 @@ func _on_battle_state_entered(state: BattleState) -> void:
 				EventBus.last_round_warning.emit(round_count)
 		BattleState.ACTIVE_TURN:
 			EventBus.unit_turn_started.emit(_current_unit_id)
+			var au: UnitInstance = _units.get(_current_unit_id, null)
+			if au != null and au.definition.faction == "enemy":
+				EventBus.enemy_turn_started.emit(_current_unit_id)  # AI 执行→enemy_actions_completed 推进
 		BattleState.ROUND_END:
 			EventBus.round_ended.emit()
 		BattleState.BATTLE_WIN:
