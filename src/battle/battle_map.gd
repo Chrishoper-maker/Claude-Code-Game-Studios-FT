@@ -23,6 +23,10 @@ const RANGED_CORRIDOR_MIN_LENGTH := 3  # F6
 const BOARD_SIZE := 8
 
 var _map_state: MapState = MapState.MAP_UNLOADED
+var _valid_deploy_cells: Array[Vector2i] = []  # 加载时扣除 BLOCKED 重叠后的有效部署格
+var _blocked_cells: Array[Vector2i] = []       # 本图写入棋盘的 BLOCKED 格（reset 时清）
+var _deployed_ids: Array[int] = []             # 已 place 的敌方 battle_id（reset 时移除）
+var _grid_board: GridBoard = null              # 加载时注入引用（reset 复用）
 
 func get_map_state() -> MapState:
 	return _map_state
@@ -30,15 +34,99 @@ func get_map_state() -> MapState:
 func is_map_ready() -> bool:
 	return _map_state == MapState.MAP_READY
 
-func get_deploy_zone_available(_occupied: Array = []) -> Array[Vector2i]:
-	return []  # TODO(battle-map deploy story)：返回 _valid_deploy_cells 减 _occupied。
+# 返回有效部署格减去 occupied（Rule 4，本系统唯一所有者）。
+func get_deploy_zone_available(occupied: Array = []) -> Array[Vector2i]:
+	var out: Array[Vector2i] = []
+	for c in _valid_deploy_cells:
+		if not c in occupied:
+			out.append(c)
+	return out
 
 # 由 BattleScene._ready() 调用（ADR-0002 / architecture.md 4d）。
 func load_map(_island_index: int) -> void:
-	# TODO(battle-map deploy story)：MapDataManager.get_map → validate_map →
-	#   写地形 + 生成敌方 UnitInstance + place_unit（需 UnitInstance 类）→
-	#   注册 _valid_deploy_cells → EventBus.map_loaded / map_load_failed；推进 MAP_* 状态机。
+	# TODO(battle-map scene-glue story)：解析兄弟 GridBoard/TurnManager 节点 +
+	#   MapDataManager.get_map(island_index)（待 .tres 数据）→ 调 load_map_definition。
 	pass
+
+# 部署核心（Rule 3 步骤 1-5）：验证 → 写地形 → 生成/注册/place 敌人 → 注册部署区 → map_loaded。
+# 依赖注入 grid_board / turn_manager / unit_lookup（coding-standards DI）。返回是否成功。
+func load_map_definition(map_def: MapDefinition, grid_board: GridBoard, turn_manager: TurnManager, unit_lookup: Callable = Callable()) -> bool:
+	# EC-9：MAP_ACTIVE 拒绝新加载（不中断进行中战斗）。
+	if _map_state == MapState.MAP_ACTIVE:
+		EventBus.map_load_failed.emit(&"map_already_active")
+		return false
+
+	# ① 验证（短路）
+	_map_state = MapState.MAP_VALIDATING
+	var reason := validate_map(map_def, unit_lookup)
+	if reason != &"":
+		_map_state = MapState.MAP_UNLOADED
+		EventBus.map_load_failed.emit(reason)
+		return false
+
+	var lookup := unit_lookup if unit_lookup.is_valid() else (func(id: String) -> UnitDefinition: return UnitDataManager.get_unit(id))
+	_map_state = MapState.MAP_LOADING
+	_grid_board = grid_board
+
+	# ② 写地形（MVP：仅 BLOCKED；COVER 推迟）
+	_blocked_cells = []
+	for cell in map_def.terrain_data:
+		if cell.type == "BLOCKED":
+			grid_board.set_blocked(cell.pos, true)
+			_blocked_cells.append(cell.pos)
+
+	# ③ 部署敌方：生成 UnitInstance → 写 behavior/home → 注册 battle_id → place
+	_deployed_ids = []
+	for slot in map_def.enemy_roster:
+		var def: UnitDefinition = lookup.call(slot.unit_definition_id)
+		var inst := UnitInstance.from_definition(def)
+		inst.behavior_type = slot.behavior_type
+		inst.home_pos = slot.home_pos
+		inst.grid_position = slot.grid_position
+		var battle_id := turn_manager.register_unit(inst)
+		grid_board.place_unit(battle_id, slot.grid_position)
+		_deployed_ids.append(battle_id)
+
+	# ④ 注册部署区（扣除 BLOCKED 重叠）
+	var blocked_set: Dictionary = {}
+	for p in _blocked_cells:
+		blocked_set[p] = true
+	_valid_deploy_cells = []
+	for d in map_def.deploy_zone:
+		if not blocked_set.has(d):
+			_valid_deploy_cells.append(d)
+
+	# ⑤ 完成
+	_map_state = MapState.MAP_READY
+	EventBus.map_loaded.emit(map_def.map_id)
+	return true
+
+# ── 状态机转换（由 BattleScene 将 EventBus 信号连到这些方法）──
+func on_battle_started() -> void:
+	if _map_state == MapState.MAP_READY:
+		_map_state = MapState.MAP_ACTIVE
+
+func on_battle_won() -> void:
+	if _map_state == MapState.MAP_ACTIVE:
+		_map_state = MapState.MAP_RESOLVED
+
+func on_battle_lost() -> void:
+	if _map_state == MapState.MAP_ACTIVE:
+		_map_state = MapState.MAP_RESOLVED
+
+# MAP_RESOLVED → 清空棋盘地形与敌方单位 → MAP_UNLOADED。
+func on_map_reset() -> void:
+	if _map_state != MapState.MAP_RESOLVED:
+		return
+	if _grid_board != null:
+		for p in _blocked_cells:
+			_grid_board.set_blocked(p, false)
+		for id in _deployed_ids:
+			_grid_board.remove_unit(id)
+	_valid_deploy_cells = []
+	_blocked_cells = []
+	_deployed_ids = []
+	_map_state = MapState.MAP_UNLOADED
 
 # ── 验证内核：Rule 3 验证序列 ①–⑨，短路返回首个失败 reason；&"" 表示全部通过 ──
 # unit_lookup(id: String) -> UnitDefinition（注入；默认走 UnitDataManager autoload）。
