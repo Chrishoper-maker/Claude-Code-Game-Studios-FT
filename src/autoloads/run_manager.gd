@@ -91,6 +91,7 @@ func start_run() -> void:
 	pending_deploy.clear()
 	_downed_this_run.clear()
 	current_island_index = -1
+	last_run_won = false
 	for def in UnitDataManager.get_all_units():
 		if def is CrewDefinition and (def as CrewDefinition).recruit_pool_tier == "starting":
 			roster.append(def as CrewDefinition)

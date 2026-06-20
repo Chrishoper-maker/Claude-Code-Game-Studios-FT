@@ -61,11 +61,13 @@ func test_start_run_fills_roster_with_starting_crew() -> void:
 func test_start_run_resets_run_state() -> void:
 	RunManager._excluded_offers.append("x")
 	RunManager.pending_deploy.append(null)
+	RunManager.last_run_won = true
 	RunManager.start_run()
 	assert_int(RunManager._excluded_offers.size()).is_equal(0)
 	assert_int(RunManager.pending_deploy.size()).is_equal(0)
 	assert_int(RunManager.current_island_index).is_equal(-1)
 	assert_str(RunManager.current_phase).is_equal("DEPLOYING")
+	assert_bool(RunManager.last_run_won).is_false()
 
 func test_battle_won_non_final_enters_recruiting() -> void:
 	RunManager.current_island_index = 0   # 0+1 < 5 → 非末岛
