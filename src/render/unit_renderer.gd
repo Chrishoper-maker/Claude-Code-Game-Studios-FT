@@ -21,6 +21,7 @@ func _on_hp_changed(target_id: int, _final_damage: int, new_hp: int) -> void:
 	var v: UnitView = _views.get(target_id, null)
 	if v != null:
 		v.set_hp(new_hp, _max_hp.get(target_id, new_hp))
+		v.flash_hit()
 
 # 为单位生成视觉节点（部署后由 BattleScene/预览调用）。
 func spawn_view(unit_class: String, faction: String, battle_id: int, grid_pos: Vector2i) -> UnitView:

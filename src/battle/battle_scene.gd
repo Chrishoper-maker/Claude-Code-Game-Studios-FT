@@ -15,6 +15,9 @@ extends Node3D
 @onready var _board_highlighter: BoardHighlighter = $BoardHighlighter
 @onready var _player_turn_controller: PlayerTurnController = $PlayerTurnController
 @onready var _battle_hud: BattleHUD = $HUDLayer/BattleHUD
+@onready var _damage_floater: DamageFloater = $HUDLayer/DamageFloater
+@onready var _camera_shake: CameraShake = $CameraShake
+@onready var _battle_result_overlay: BattleResultOverlay = $BurstLayer/BattleResultOverlay
 
 # TEMP：DeployScreen story 落地前的起始 crew 引导（破阵先锋配对，两格相邻 → 可触发爆发）。
 const _BOOTSTRAP_CREW := ["crew_swordsman_01", "crew_bulwark_01"]
@@ -29,6 +32,12 @@ func _ready() -> void:
 	_bond_gauge_burst.setup(_grid_board, _turn_manager, _battle_resolution)  # 订阅充能信号
 	_player_turn_controller.setup(_turn_manager, _grid_board, _battle_resolution, _bond_gauge_burst, _board_highlighter, _battle_hud)
 	_battle_hud.setup(_player_turn_controller, _turn_manager)
+	# TEMP：航线/招募元层未做 → 断开 RunManager 的胜利跳转（否则 goto_route 因 route_scene 未赋值 assert 崩）。
+	if EventBus.battle_won.is_connected(RunManager._on_battle_won):
+		EventBus.battle_won.disconnect(RunManager._on_battle_won)
+	_damage_floater.setup(_unit_renderer, func(id: int) -> String: return _faction_of(id))
+	_camera_shake.setup(get_viewport().get_camera_3d())
+	_battle_result_overlay.setup()
 	# architecture.md 4d：引导战斗。
 	_battle_map.load_map(RunManager.current_island_index)   # 读 autoload 持久状态 → 部署敌方
 	_deploy_starting_crew()                                 # TEMP：自动部署玩家方
@@ -52,3 +61,8 @@ func _spawn_all_views() -> void:
 		var view := _unit_renderer.spawn_view(inst.definition.unit_class, inst.definition.faction, battle_id, inst.grid_position)
 		_unit_renderer.set_unit_max_hp(battle_id, inst.definition.max_hp)
 		view.set_hp(inst.current_hp, inst.definition.max_hp)
+
+# 辅助：根据 battle_id 查询阵营字符串（传给 DamageFloater 的 faction_lookup）。
+func _faction_of(battle_id: int) -> String:
+	var u := _turn_manager.get_unit(battle_id)
+	return u.definition.faction if u != null else "enemy"
