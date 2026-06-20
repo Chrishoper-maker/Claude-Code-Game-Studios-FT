@@ -28,6 +28,8 @@ signal battle_won()
 signal battle_lost()
 signal round_started(round_count: int)
 signal round_ended()
+signal player_phase_started()   # 阶段制：我方回合开始（玩家自由点选指挥己方单位）
+signal enemy_phase_started()    # 阶段制：敌方回合开始（敌方依次自动行动）
 signal unit_turn_started(unit_id: int)
 signal unit_turn_ended(unit_id: int)
 signal enemy_turn_started(unit_id: int)

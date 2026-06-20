@@ -49,10 +49,12 @@ func remove_unit(id: int) -> void:
 		_unit_pos.erase(id)
 
 func forced_move_unit(id: int, dest: Vector2i) -> void:
+	var from_pos: Vector2i = _unit_pos.get(id, dest)
 	if _unit_pos.has(id):
 		_occupancy.erase(_unit_pos[id])
 	_occupancy[dest] = id
 	_unit_pos[id] = dest
+	EventBus.unit_moved.emit(id, from_pos, dest)
 
 func get_unit_pos(id: int) -> Vector2i:
 	return _unit_pos.get(id, Vector2i(EMPTY, EMPTY))
@@ -108,5 +110,5 @@ func get_attack_staging_cells(mover_pos: Vector2i, move_range: int, target_pos: 
 	return result
 
 # 世界坐标映射委托 ADR-0006 GridCoordMapper（GDD §10：映射属实现层）。
-func grid_to_world(_pos: Vector2i) -> Vector3: return Vector3.ZERO     # TODO(ADR-0006)
-func world_to_grid(_world: Vector3) -> Vector2i: return Vector2i.ZERO  # TODO(ADR-0006)
+func grid_to_world(pos: Vector2i) -> Vector3: return GridCoordMapper.grid_to_world(pos)
+func world_to_grid(world: Vector3) -> Vector2i: return GridCoordMapper.world_to_grid(world)

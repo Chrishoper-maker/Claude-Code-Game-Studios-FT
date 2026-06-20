@@ -1,0 +1,200 @@
+extends GdUnitTestSuite
+
+func before_test() -> void:
+	if EventBus.battle_won.is_connected(RunManager._on_battle_won):
+		EventBus.battle_won.disconnect(RunManager._on_battle_won)
+
+func after_test() -> void:
+	if not EventBus.battle_won.is_connected(RunManager._on_battle_won):
+		EventBus.battle_won.connect(RunManager._on_battle_won)
+
+func _make_def(faction: String, unit_class: String, dmg: int, move_range: int, hp: int, verb: String) -> UnitDefinition:
+	var d := UnitDefinition.new()
+	d.id = "%s_%s" % [faction, unit_class]
+	d.faction = faction
+	d.unit_class = unit_class
+	d.base_damage = dmg
+	d.move_range = move_range
+	d.attack_range = 1
+	d.max_hp = hp
+	d.class_action_id = verb
+	return d
+
+func _register(tm: TurnManager, gb: GridBoard, def: UnitDefinition, pos: Vector2i) -> int:
+	var inst := UnitInstance.from_definition(def)
+	inst.grid_position = pos
+	var bid := tm.register_unit(inst)
+	gb.place_unit(bid, pos)
+	return bid
+
+func _make_controller() -> Dictionary:
+	var gb: GridBoard = auto_free(GridBoard.new())
+	var tm: TurnManager = auto_free(TurnManager.new())
+	var br: BattleResolution = auto_free(BattleResolution.new())
+	var bb: BondGaugeBurst = auto_free(BondGaugeBurst.new())
+	br.setup(gb, tm)
+	bb.setup(gb, tm, br)
+	var ctrl: PlayerTurnController = auto_free(PlayerTurnController.new())
+	ctrl.setup(tm, gb, br, bb)
+	return {"gb": gb, "tm": tm, "br": br, "bb": bb, "ctrl": ctrl}
+
+# 进入我方回合并选中一个己方单位指挥（自由点选模型）。
+func _begin_select(ctx: Dictionary, unit_id: int) -> void:
+	ctx.ctrl._on_player_phase_started()
+	ctx.ctrl.select_unit(unit_id)
+
+func _fill_gauge(bb: BondGaugeBurst) -> void:
+	for i in 6:
+		bb.apply_attack_charge(0, true)  # +2/次，6 次 → clamp 满
+
+# ── 选择 ──
+func test_select_crew_unit_makes_it_active() -> void:
+	var ctx := _make_controller()
+	var crew := _register(ctx.tm, ctx.gb, _make_def("crew", "swordsman", 3, 3, 10, "slash"), Vector2i(3, 7))
+	_begin_select(ctx, crew)
+	assert_bool(ctx.ctrl.is_active()).is_true()
+	assert_int(ctx.ctrl.get_current_unit_id()).is_equal(crew)
+	assert_int(ctx.ctrl.get_mode()).is_equal(PlayerTurnController.Mode.IDLE)
+
+func test_select_enemy_unit_rejected() -> void:
+	var ctx := _make_controller()
+	var enemy := _register(ctx.tm, ctx.gb, _make_def("enemy", "swordsman", 2, 2, 6, ""), Vector2i(3, 0))
+	ctx.ctrl._on_player_phase_started()
+	ctx.ctrl.select_unit(enemy)
+	assert_bool(ctx.ctrl.is_active()).is_false()
+
+func test_no_input_outside_player_phase() -> void:
+	var ctx := _make_controller()
+	var crew := _register(ctx.tm, ctx.gb, _make_def("crew", "swordsman", 3, 3, 10, "slash"), Vector2i(3, 7))
+	ctx.ctrl._on_enemy_phase_started()   # 敌方回合
+	ctx.ctrl.select_unit(crew)
+	ctx.ctrl.set_mode(PlayerTurnController.Mode.MOVE)
+	assert_bool(ctx.ctrl.is_active()).is_false()
+	assert_array(ctx.ctrl.get_valid_targets()).is_empty()
+
+# ── 点击空闲态己方单位 = 选中 ──
+func test_click_idle_on_ally_selects_it() -> void:
+	var ctx := _make_controller()
+	var crew := _register(ctx.tm, ctx.gb, _make_def("crew", "swordsman", 3, 3, 10, "slash"), Vector2i(3, 7))
+	ctx.ctrl._on_player_phase_started()
+	ctx.ctrl.handle_cell_click(Vector2i(3, 7))
+	assert_int(ctx.ctrl.get_current_unit_id()).is_equal(crew)
+
+# ── MOVE ──
+func test_set_mode_move_targets_are_reachable_cells() -> void:
+	var ctx := _make_controller()
+	var crew := _register(ctx.tm, ctx.gb, _make_def("crew", "swordsman", 3, 3, 10, "slash"), Vector2i(3, 7))
+	_begin_select(ctx, crew)
+	ctx.ctrl.set_mode(PlayerTurnController.Mode.MOVE)
+	var expected: Array = ctx.gb.get_reachable_cells(Vector2i(3, 7), 3)
+	assert_array(ctx.ctrl.get_valid_targets()).is_equal(expected)
+	assert_int(ctx.ctrl.get_mode()).is_equal(PlayerTurnController.Mode.MOVE)
+
+func test_handle_cell_click_move_relocates_unit_and_marks_moved() -> void:
+	var ctx := _make_controller()
+	var crew := _register(ctx.tm, ctx.gb, _make_def("crew", "swordsman", 3, 3, 10, "slash"), Vector2i(3, 7))
+	_begin_select(ctx, crew)
+	ctx.ctrl.set_mode(PlayerTurnController.Mode.MOVE)
+	ctx.ctrl.handle_cell_click(Vector2i(3, 6))
+	var u: UnitInstance = ctx.tm.get_unit(crew)
+	assert_vector(u.grid_position).is_equal(Vector2i(3, 6))
+	assert_bool(u.has_moved).is_true()
+	assert_vector(ctx.gb.get_unit_pos(crew)).is_equal(Vector2i(3, 6))
+	assert_int(ctx.ctrl.get_mode()).is_equal(PlayerTurnController.Mode.IDLE)
+
+func test_handle_cell_click_illegal_cell_no_effect() -> void:
+	var ctx := _make_controller()
+	var crew := _register(ctx.tm, ctx.gb, _make_def("crew", "swordsman", 3, 3, 10, "slash"), Vector2i(3, 7))
+	_begin_select(ctx, crew)
+	ctx.ctrl.set_mode(PlayerTurnController.Mode.MOVE)
+	ctx.ctrl.handle_cell_click(Vector2i(0, 0))
+	var u: UnitInstance = ctx.tm.get_unit(crew)
+	assert_vector(u.grid_position).is_equal(Vector2i(3, 7))
+	assert_bool(u.has_moved).is_false()
+
+# ── ATTACK ──
+func test_set_mode_attack_targets_are_in_range_enemies() -> void:
+	var ctx := _make_controller()
+	var crew := _register(ctx.tm, ctx.gb, _make_def("crew", "swordsman", 3, 3, 10, "slash"), Vector2i(3, 6))
+	_register(ctx.tm, ctx.gb, _make_def("enemy", "swordsman", 2, 2, 6, ""), Vector2i(3, 5))
+	_begin_select(ctx, crew)
+	ctx.ctrl.set_mode(PlayerTurnController.Mode.ATTACK)
+	assert_array(ctx.ctrl.get_valid_targets()).contains([Vector2i(3, 5)])
+
+func test_handle_cell_click_attack_damages_enemy() -> void:
+	var ctx := _make_controller()
+	var crew := _register(ctx.tm, ctx.gb, _make_def("crew", "swordsman", 3, 3, 10, "slash"), Vector2i(3, 6))
+	var enemy := _register(ctx.tm, ctx.gb, _make_def("enemy", "swordsman", 2, 2, 6, ""), Vector2i(3, 5))
+	_begin_select(ctx, crew)
+	ctx.ctrl.set_mode(PlayerTurnController.Mode.ATTACK)
+	ctx.ctrl.handle_cell_click(Vector2i(3, 5))
+	assert_int(ctx.tm.get_unit(enemy).current_hp).is_equal(3)
+	assert_bool(ctx.tm.get_unit(crew).has_acted).is_true()
+	assert_int(ctx.ctrl.get_mode()).is_equal(PlayerTurnController.Mode.IDLE)
+
+# ── 技能（slash/guard）──
+func test_do_verb_slash_hits_adjacent_enemy_and_marks_verb() -> void:
+	var ctx := _make_controller()
+	var crew := _register(ctx.tm, ctx.gb, _make_def("crew", "swordsman", 3, 3, 10, "slash"), Vector2i(3, 6))
+	var enemy := _register(ctx.tm, ctx.gb, _make_def("enemy", "swordsman", 2, 2, 6, ""), Vector2i(3, 5))
+	_begin_select(ctx, crew)
+	ctx.ctrl.do_verb()
+	assert_bool(ctx.tm.get_unit(crew).has_used_verb).is_true()
+	assert_int(ctx.tm.get_unit(enemy).current_hp).is_equal(3)
+
+func test_do_verb_guard_marks_self_verb() -> void:
+	var ctx := _make_controller()
+	var crew := _register(ctx.tm, ctx.gb, _make_def("crew", "bulwark", 2, 2, 12, "guard"), Vector2i(3, 6))
+	_begin_select(ctx, crew)
+	ctx.ctrl.do_verb()
+	assert_bool(ctx.tm.get_unit(crew).has_used_verb).is_true()
+
+# ── 爆发 ──
+func test_begin_burst_targeting_highlights_eligible_leads() -> void:
+	var ctx := _make_controller()
+	_register(ctx.tm, ctx.gb, _make_def("crew", "swordsman", 3, 3, 10, "slash"), Vector2i(3, 7))
+	_register(ctx.tm, ctx.gb, _make_def("crew", "bulwark", 2, 2, 12, "guard"), Vector2i(3, 6))
+	_fill_gauge(ctx.bb)
+	ctx.ctrl._on_player_phase_started()
+	ctx.ctrl.begin_burst_targeting()
+	assert_int(ctx.ctrl.get_mode()).is_equal(PlayerTurnController.Mode.BURST_LEAD)
+	assert_array(ctx.ctrl.get_valid_targets()).contains([Vector2i(3, 7), Vector2i(3, 6)])
+
+func test_burst_lead_then_partner_activates_burst() -> void:
+	var ctx := _make_controller()
+	_register(ctx.tm, ctx.gb, _make_def("crew", "swordsman", 3, 3, 10, "slash"), Vector2i(3, 7))
+	_register(ctx.tm, ctx.gb, _make_def("crew", "bulwark", 2, 2, 12, "guard"), Vector2i(3, 6))
+	_register(ctx.tm, ctx.gb, _make_def("enemy", "swordsman", 2, 2, 6, ""), Vector2i(3, 5))
+	_fill_gauge(ctx.bb)
+	ctx.ctrl._on_player_phase_started()
+	ctx.ctrl.begin_burst_targeting()
+	ctx.ctrl.handle_cell_click(Vector2i(3, 7))
+	assert_int(ctx.ctrl.get_mode()).is_equal(PlayerTurnController.Mode.BURST_PARTNER)
+	ctx.ctrl.handle_cell_click(Vector2i(3, 6))
+	assert_bool(ctx.bb.is_full()).is_false()
+	assert_int(ctx.ctrl.get_mode()).is_equal(PlayerTurnController.Mode.IDLE)
+
+# ── available_actions + end_player_phase ──
+func test_get_available_actions_reflects_flags() -> void:
+	var ctx := _make_controller()
+	var crew := _register(ctx.tm, ctx.gb, _make_def("crew", "swordsman", 3, 3, 10, "slash"), Vector2i(3, 6))
+	_register(ctx.tm, ctx.gb, _make_def("enemy", "swordsman", 2, 2, 6, ""), Vector2i(3, 5))
+	_begin_select(ctx, crew)
+	var a: Dictionary = ctx.ctrl.get_available_actions()
+	assert_bool(a["move"]).is_true()
+	assert_bool(a["attack"]).is_true()
+	assert_bool(a["verb"]).is_true()
+	assert_bool(a["burst"]).is_false()
+	ctx.ctrl.set_mode(PlayerTurnController.Mode.ATTACK)
+	ctx.ctrl.handle_cell_click(Vector2i(3, 5))
+	assert_bool(ctx.ctrl.get_available_actions()["attack"]).is_false()
+
+func test_end_player_phase_advances_round() -> void:
+	var ctx := _make_controller()
+	var crew := _register(ctx.tm, ctx.gb, _make_def("crew", "swordsman", 3, 3, 10, "slash"), Vector2i(3, 6))
+	_register(ctx.tm, ctx.gb, _make_def("enemy", "swordsman", 2, 2, 6, ""), Vector2i(3, 0))
+	ctx.tm.start_battle()           # → 我方回合（controller 经信号激活）
+	ctx.ctrl.select_unit(crew)
+	ctx.ctrl.end_player_phase()
+	assert_int(ctx.tm.get_current_round()).is_equal(2)
+	assert_int(ctx.tm.get_battle_state()).is_equal(TurnManager.BattleState.PLAYER_PHASE)

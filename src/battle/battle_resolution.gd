@@ -159,6 +159,97 @@ func execute_slash(attacker_id: int) -> void:
 	EventBus.slash_executed.emit(str(attacker_id), targets, pre_guard)
 	_turn_manager.mark_has_used_verb(attacker_id)
 
+# 爆发增强斩（bond-gauge-burst Rule 7 破阵先锋②/热血演奏②）：相邻敌方 AoE，
+# 伤害 = base × multiplier，穿透 GUARDED（不减伤），不接受修正器。
+# consume_aura=true 时（热血演奏，EC-12）：施放者持 AURA_BONUS 则追加 AURA_VALUE 并消耗。
+# 不消耗施放者动词（动作点由 BondGaugeBurst 经羁绊槽消耗）。施放者已 Downed 则跳过（EC-2）。
+func execute_burst_slash(attacker_id: int, multiplier: int, consume_aura: bool = false) -> void:
+	var a := _turn_manager.get_unit(attacker_id)
+	if a == null or not a.is_alive:
+		return
+	var dmg := a.definition.base_damage * multiplier
+	if consume_aura and get_unit_status(attacker_id, STATUS_AURA):
+		dmg += AURA_VALUE
+		_consume_status(attacker_id, STATUS_AURA)
+	var targets: Array[int] = []
+	for nid in _grid_board.get_adjacents(a.grid_position):
+		var n := _turn_manager.get_unit(nid)
+		if n != null and n.is_alive and n.definition.faction != a.definition.faction:
+			targets.append(nid)
+	for tid in targets:
+		var t := _turn_manager.get_unit(tid)
+		var new_hp := maxi(0, t.current_hp - dmg)   # 穿透：不走 _apply_guard
+		t.current_hp = new_hp
+		# 不发 attack_executed：爆发斩非"普通攻击/斩"，不触发羁绊充能（EC-8 防"即刻又半满"）。
+		EventBus.damage_dealt.emit(tid, dmg, new_hp)
+		if new_hp == 0:
+			resolve_unit_downed(tid)
+
+# 爆发推移（bond-gauge-burst Rule 7 瞄准定位①）：沿 caster→target 方向推 target
+# ≤PUSH_DISTANCE，遇边界/障碍/占用停。返回是否成功移动（用于 EC-6 推移失败取消炮击）。
+# 不消耗施放者动词（动作点由 BondGaugeBurst 经羁绊槽消耗）。
+func execute_burst_displace(caster_id: int, target_id: int) -> bool:
+	var c := _turn_manager.get_unit(caster_id)
+	var t := _turn_manager.get_unit(target_id)
+	if c == null or t == null or not c.is_alive or not t.is_alive:
+		return false
+	var direction := _cardinal_toward(caster_id, target_id)
+	var from_pos := t.grid_position
+	var dest := from_pos
+	for _i in PUSH_DISTANCE:
+		var nxt := dest + direction
+		if not _grid_board.is_empty(nxt):
+			break
+		dest = nxt
+	if dest == from_pos:
+		return false
+	_grid_board.forced_move_unit(target_id, dest)
+	t.grid_position = dest
+	EventBus.displacement_executed.emit(target_id, from_pos, dest)
+	return true
+
+# 爆发穿透炮（bond-gauge-burst Rule 7 瞄准定位②）：朝 attacker→target 方向发射。
+func execute_burst_cannon(attacker_id: int, target_id: int, multiplier: int) -> void:
+	var a := _turn_manager.get_unit(attacker_id)
+	var t := _turn_manager.get_unit(target_id)
+	if a == null or t == null or not a.is_alive:
+		return
+	execute_burst_cannon_dir(attacker_id, _cardinal_toward(attacker_id, target_id), multiplier)
+
+# 爆发定向穿透炮（瞄准定位②核心 / 轰鸣序曲② 4 基本方向）：从 attacker 沿 direction
+# 穿透直线，弹道上所有存活单位受伤害 = base × multiplier（不分阵营，同普通轰；EC-7）。
+# 不消耗动词；不 emit cannon_executed（避免触发羁绊充能→爆发即刻又充能，同 EC-8）。
+func execute_burst_cannon_dir(attacker_id: int, direction: Vector2i, multiplier: int) -> void:
+	var a := _turn_manager.get_unit(attacker_id)
+	if a == null or not a.is_alive:
+		return
+	var dmg := a.definition.base_damage * multiplier
+	var cell := a.grid_position
+	for _i in a.definition.attack_range:
+		cell += direction
+		if not _grid_board.in_bounds(cell):
+			break
+		var uid := _grid_board.get_cell(cell)
+		if uid != GridBoard.EMPTY:
+			var u := _turn_manager.get_unit(uid)
+			if u != null and u.is_alive:
+				var new_hp := maxi(0, u.current_hp - dmg)
+				u.current_hp = new_hp
+				EventBus.damage_dealt.emit(uid, dmg, new_hp)
+				if new_hp == 0:
+					resolve_unit_downed(uid)
+
+# 爆发治疗（护持突破②/钢铁壁垒②）：target 回复 amount HP，钳制 max_hp。
+# 不消耗施放者动词；emit heal_executed（不触发充能）。
+func execute_burst_heal(target_id: int, amount: int) -> void:
+	var t := _turn_manager.get_unit(target_id)
+	if t == null or not t.is_alive:
+		return
+	var new_hp := mini(t.current_hp + amount, t.definition.max_hp)
+	var healed := new_hp - t.current_hp
+	t.current_hp = new_hp
+	EventBus.heal_executed.emit(target_id, healed)
+
 # Rule 4 轰：穿透直线，不分阵营，仅 base 伤害（无修正器/光环），不 emit attack_executed。
 func execute_cannon(attacker_id: int, direction: Vector2i) -> void:
 	var a := _turn_manager.get_unit(attacker_id)

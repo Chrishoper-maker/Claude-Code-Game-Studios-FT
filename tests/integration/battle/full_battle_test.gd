@@ -41,24 +41,26 @@ func test_assembled_battle_reaches_victory() -> void:
 	br.setup(gb, tm)
 	ab.setup(gb, tm, br)
 	ai.setup(gb, tm, br)
-	var ally := _add(tm, gb, "crew", Vector2i(0, 0), 6, 1, 6)    # 强力，先攻最高
+	var ally := _add(tm, gb, "crew", Vector2i(0, 0), 6, 1, 6)    # 强力
 	var enemy := _add(tm, gb, "enemy", Vector2i(0, 1), 2, 1, 3)  # 脆弱，邻接
-	tm.start_battle()
-	# 先攻：ally(2+1=3) > enemy(2.000001) → ally 先 ACTIVE
-	assert_int(tm.get_current_unit_id()).is_equal(ally)
+	tm.start_battle()                                           # → 我方回合
+	assert_int(tm.get_battle_state()).is_equal(TurnManager.BattleState.PLAYER_PHASE)
 	br.execute_attack(ally, enemy)                              # 6 伤 → 敌方倒下 → 即时胜利
 	assert_int(tm.get_battle_state()).is_equal(TurnManager.BattleState.BATTLE_WIN)
 
-# 实例化 BattleScene.tscn：接线 + 部署 .tres 敌人 + 跑完战斗（无友方 → 轮数耗尽失败）
+# 实例化 BattleScene.tscn：接线 + 部署 4 敌 + 临时引导部署 2 crew → 战斗在首个玩家回合等待输入。
+# TEMP：断言绑定 battle_scene 的起始 crew 引导（DeployScreen story 落地后随之更新）。
 func test_battle_scene_boots_deploys_and_runs() -> void:
 	var started := [0]
 	var cb := func() -> void: started[0] += 1
 	EventBus.battle_started.connect(cb)
 	var scene: BattleScene = auto_free(preload("res://scenes/BattleScene.tscn").instantiate())
-	add_child(scene)   # 触发 _ready：接线 → load_map(battle_map_001) 部署 4 敌 → start_battle
+	add_child(scene)   # 触发 _ready：接线 → load_map 部署 4 敌 → 引导部署 2 crew → start_battle
 	EventBus.battle_started.disconnect(cb)
 	assert_int(started[0]).is_equal(1)
 	# battle_map_001 部署 4 个敌方单位
 	assert_int(scene._turn_manager.get_alive_enemies().size()).is_equal(4)
-	# 无友方上场 → 8 轮耗尽 → 失败（证明回合循环同步跑到终态）
-	assert_int(scene._turn_manager.get_battle_state()).is_equal(TurnManager.BattleState.BATTLE_LOSS)
+	# 引导自动部署 2 名起始 crew（阿斩 + 铁球梅莉）
+	assert_int(scene._turn_manager.get_alive_allies().size()).is_equal(2)
+	# 阶段制：start_battle 后停在我方回合，等待玩家自由点选指挥（非终态）。
+	assert_int(scene._turn_manager.get_battle_state()).is_equal(TurnManager.BattleState.PLAYER_PHASE)

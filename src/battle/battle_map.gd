@@ -28,6 +28,7 @@ var _map_state: MapState = MapState.MAP_UNLOADED
 var _valid_deploy_cells: Array[Vector2i] = []  # 加载时扣除 BLOCKED 重叠后的有效部署格
 var _blocked_cells: Array[Vector2i] = []       # 本图写入棋盘的 BLOCKED 格（reset 时清）
 var _deployed_ids: Array[int] = []             # 已 place 的敌方 battle_id（reset 时移除）
+var _deployed_crew_ids: Array[int] = []        # 已 place 的玩家方 battle_id（reset 时移除）
 var _grid_board: GridBoard = null              # 加载时注入引用（reset 复用）
 var _turn_manager: TurnManager = null          # 场景胶水注入（load_map 用）
 
@@ -49,6 +50,31 @@ func get_deploy_zone_available(occupied: Array = []) -> Array[Vector2i]:
 		if not c in occupied:
 			out.append(c)
 	return out
+
+# 玩家方部署（route-recruitment confirm_deploy 后端 / DeployScreen 提交点）：
+# 将选定 crew 放入部署区指定格。验证：MAP_READY + 数量匹配 + 每格在部署区/不重复/未占用。
+# 全部合法才落地（任一非法返回 false，不部署任何单位）。crew battle_id 入 _deployed_crew_ids（reset 清）。
+func deploy_crew(crew_defs: Array, positions: Array) -> bool:
+	if _map_state != MapState.MAP_READY:
+		return false
+	if crew_defs.is_empty() or crew_defs.size() != positions.size():
+		return false
+	var seen: Dictionary = {}
+	for pos in positions:
+		if not pos in _valid_deploy_cells:
+			return false
+		if seen.has(pos):
+			return false
+		seen[pos] = true
+		if not _grid_board.is_empty(pos):
+			return false
+	for i in crew_defs.size():
+		var inst := UnitInstance.from_definition(crew_defs[i])
+		inst.grid_position = positions[i]
+		var battle_id := _turn_manager.register_unit(inst)
+		_grid_board.place_unit(battle_id, positions[i])
+		_deployed_crew_ids.append(battle_id)
+	return true
 
 # 由 BattleScene._ready() 调用（ADR-0002 / architecture.md 4d）。需先 setup() 注入引用。
 # MVP：忽略 island_index，固定加载 battle_map_001（航线系统接管后按 index 选图）。
@@ -78,6 +104,7 @@ func load_map_definition(map_def: MapDefinition, grid_board: GridBoard, turn_man
 	var lookup := unit_lookup if unit_lookup.is_valid() else (func(id: String) -> UnitDefinition: return UnitDataManager.get_unit(id))
 	_map_state = MapState.MAP_LOADING
 	_grid_board = grid_board
+	_turn_manager = turn_manager   # 持久化供 deploy_crew（玩家方部署在加载后调用）
 
 	# ② 写地形（MVP：仅 BLOCKED；COVER 推迟）
 	_blocked_cells = []
@@ -99,6 +126,7 @@ func load_map_definition(map_def: MapDefinition, grid_board: GridBoard, turn_man
 		_deployed_ids.append(battle_id)
 
 	# ④ 注册部署区（扣除 BLOCKED 重叠）
+	_deployed_crew_ids = []
 	var blocked_set: Dictionary = {}
 	for p in _blocked_cells:
 		blocked_set[p] = true
@@ -134,9 +162,12 @@ func on_map_reset() -> void:
 			_grid_board.set_blocked(p, false)
 		for id in _deployed_ids:
 			_grid_board.remove_unit(id)
+		for id in _deployed_crew_ids:
+			_grid_board.remove_unit(id)
 	_valid_deploy_cells = []
 	_blocked_cells = []
 	_deployed_ids = []
+	_deployed_crew_ids = []
 	_map_state = MapState.MAP_UNLOADED
 
 # ── 验证内核：Rule 3 验证序列 ①–⑨，短路返回首个失败 reason；&"" 表示全部通过 ──

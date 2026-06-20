@@ -1,10 +1,10 @@
-; Engine configuration for 孤帆棋海 (Grand Line Gambit)
-; 生产工程根。Godot 4.6.3 / Forward+ / GDScript。
+; Engine configuration file.
+; It's best edited using the editor UI and not directly,
+; since the parameters that go here are not all obvious.
 ;
-; foundation autoload 已按 ADR-0002 顺序注册（见 [autoload] 节，EventBus 最先 / SceneManager 最后）。
-; 主场景暂未设（BattleScene/RouteScene 待 battle/route epic）。
-; SceneManager 的 battle_scene/route_scene PackedScene 待场景实现后在 Autoload Inspector 赋值。
-; GdUnit4 安装后会自行向本文件追加 [editor_plugins]。
+; Format:
+;   [section] ; section goes between []
+;   param=value ; assign values to parameters
 
 config_version=5
 
@@ -18,7 +18,6 @@ config/icon="res://icon.svg"
 
 [autoload]
 
-; 顺序即初始化顺序（ADR-0002）。EventBus 必须最先；SceneManager 必须最后。
 EventBus="*res://src/autoloads/event_bus.gd"
 UnitDataManager="*res://src/autoloads/unit_data_manager.gd"
 MapDataManager="*res://src/autoloads/map_data_manager.gd"
@@ -32,17 +31,14 @@ window/size/viewport_height=1080
 window/stretch/mode="canvas_items"
 window/stretch/aspect="expand"
 
-[physics]
-
-; technical-preferences：极少使用物理（网格战棋，ADR-0007 单位零物理体）。
-; 显式用内置 GodotPhysics（而非 4.6 新默认 Jolt），与 technical-preferences 一致。
-3d/physics_engine="GodotPhysics"
-
 [editor_plugins]
 
 enabled=PackedStringArray("res://addons/gdUnit4/plugin.cfg")
 
+[physics]
+
+3d/physics_engine="GodotPhysics"
+
 [rendering]
 
-renderer/rendering_method="forward_plus"
 renderer/rendering_method.mobile="gl_compatibility"

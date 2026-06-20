@@ -170,3 +170,79 @@ func test_load_rejected_when_active() -> void:
 	var ok := _load_valid(bm, _gb(), _tm())
 	assert_bool(ok).is_false()
 	assert_int(bm.get_map_state()).is_equal(BattleMap.MapState.MAP_ACTIVE)
+
+# ── 玩家方部署 deploy_crew（battle-map deploy_zone 玩家侧；route-recruitment confirm_deploy 后端）──
+
+func _crew(unit_class: String, base_damage: int = 3, hp: int = 10) -> CrewDefinition:
+	var c := CrewDefinition.new()
+	c.id = "crew_%s" % unit_class
+	c.faction = "crew"
+	c.unit_class = unit_class
+	c.max_hp = hp
+	c.base_damage = base_damage
+	c.attack_range = 1
+	c.move_range = 2
+	c.class_action_id = "slash"
+	return c
+
+func _ready_map() -> Array:
+	# 返回 [bm, gb, tm]，已加载到 MAP_READY（部署区 = rows6-7×cols0-5）。
+	var bm := _bm()
+	var gb := _gb()
+	var tm := _tm()
+	bm.load_map_definition(_valid_map(), gb, tm, _lookup())
+	return [bm, gb, tm]
+
+func test_deploy_crew_places_units_in_deploy_zone() -> void:
+	var ctx := _ready_map()
+	var bm: BattleMap = ctx[0]
+	var gb: GridBoard = ctx[1]
+	var tm: TurnManager = ctx[2]
+	var ok := bm.deploy_crew([_crew("swordsman"), _crew("bulwark")], [Vector2i(0, 6), Vector2i(1, 6)])
+	assert_bool(ok).is_true()
+	assert_int(tm.get_alive_allies().size()).is_equal(2)
+	assert_int(gb.get_cell(Vector2i(0, 6))).is_not_equal(GridBoard.EMPTY)
+	assert_int(gb.get_cell(Vector2i(1, 6))).is_not_equal(GridBoard.EMPTY)
+
+func test_deploy_crew_rejects_position_outside_deploy_zone() -> void:
+	var ctx := _ready_map()
+	var bm: BattleMap = ctx[0]
+	var tm: TurnManager = ctx[2]
+	var ok := bm.deploy_crew([_crew("swordsman")], [Vector2i(0, 0)])   # row0 不在部署区
+	assert_bool(ok).is_false()
+	assert_int(tm.get_alive_allies().size()).is_equal(0)
+
+func test_deploy_crew_rejects_occupied_cell() -> void:
+	var ctx := _ready_map()
+	var bm: BattleMap = ctx[0]
+	bm.deploy_crew([_crew("swordsman")], [Vector2i(0, 6)])
+	var ok := bm.deploy_crew([_crew("bulwark")], [Vector2i(0, 6)])     # 同格已占
+	assert_bool(ok).is_false()
+
+func test_deploy_crew_rejects_duplicate_positions() -> void:
+	var ctx := _ready_map()
+	var bm: BattleMap = ctx[0]
+	var ok := bm.deploy_crew([_crew("swordsman"), _crew("bulwark")], [Vector2i(0, 6), Vector2i(0, 6)])
+	assert_bool(ok).is_false()
+
+func test_deploy_crew_rejects_count_mismatch() -> void:
+	var ctx := _ready_map()
+	var bm: BattleMap = ctx[0]
+	var ok := bm.deploy_crew([_crew("swordsman"), _crew("bulwark")], [Vector2i(0, 6)])
+	assert_bool(ok).is_false()
+
+func test_deploy_crew_rejects_when_not_map_ready() -> void:
+	var bm := _bm()   # MAP_UNLOADED
+	var ok := bm.deploy_crew([_crew("swordsman")], [Vector2i(0, 6)])
+	assert_bool(ok).is_false()
+
+func test_map_reset_removes_deployed_crew() -> void:
+	var ctx := _ready_map()
+	var bm: BattleMap = ctx[0]
+	var gb: GridBoard = ctx[1]
+	bm.deploy_crew([_crew("swordsman"), _crew("bulwark")], [Vector2i(0, 6), Vector2i(1, 6)])
+	bm.on_battle_started()
+	bm.on_battle_won()
+	bm.on_map_reset()
+	assert_int(gb.get_cell(Vector2i(0, 6))).is_equal(GridBoard.EMPTY)
+	assert_int(gb.get_cell(Vector2i(1, 6))).is_equal(GridBoard.EMPTY)

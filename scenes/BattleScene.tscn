@@ -1,4 +1,4 @@
-[gd_scene load_steps=11 format=3]
+[gd_scene load_steps=14 format=3]
 
 [ext_resource type="Script" path="res://src/battle/battle_scene.gd" id="1_root"]
 [ext_resource type="Script" path="res://src/board/grid_board.gd" id="2_gb"]
@@ -10,6 +10,9 @@
 [ext_resource type="Script" path="res://src/battle/adjacency_bond.gd" id="8_ab"]
 [ext_resource type="Script" path="res://src/battle/bond_gauge_burst.gd" id="9_bgb"]
 [ext_resource type="Script" path="res://src/ai/enemy_ai.gd" id="10_ai"]
+[ext_resource type="Script" path="res://src/battle/player_turn_controller.gd" id="11_ptc"]
+[ext_resource type="Script" path="res://src/board/board_highlighter.gd" id="12_bh"]
+[ext_resource type="Script" path="res://src/ui/battle_hud.gd" id="13_hud"]
 
 [node name="BattleScene" type="Node3D"]
 script = ExtResource("1_root")
@@ -41,8 +44,17 @@ script = ExtResource("9_bgb")
 [node name="EnemyAI" type="Node" parent="."]
 script = ExtResource("10_ai")
 
+[node name="PlayerTurnController" type="Node" parent="."]
+script = ExtResource("11_ptc")
+
+[node name="BoardHighlighter" type="Node3D" parent="."]
+script = ExtResource("12_bh")
+
 [node name="HUDLayer" type="CanvasLayer" parent="."]
 layer = 5
+
+[node name="BattleHUD" type="Control" parent="HUDLayer"]
+script = ExtResource("13_hud")
 
 [node name="BurstLayer" type="CanvasLayer" parent="."]
 layer = 10

@@ -28,3 +28,23 @@ func test_intent_record_defaults_to_wait() -> void:
 	var ir := IntentRecord.new()
 	assert_int(ir.intent_type).is_equal(IntentRecord.IntentType.INTENT_WAIT)
 	assert_int(ir.target_id).is_equal(-1)
+
+# crew .tres 加载校验（白盒船员数据文件结构/字段正确）。
+func test_crew_tres_files_load_as_crew_definitions() -> void:
+	var ids := ["crew_swordsman_01", "crew_bulwark_01", "crew_swordsman_02", "crew_gunner_01"]
+	for id in ids:
+		var res := ResourceLoader.load("res://assets/data/units/%s.tres" % id)
+		assert_object(res).is_not_null()
+		assert_bool(res is CrewDefinition).is_true()
+		assert_str(res.faction).is_equal("crew")
+		assert_str(res.id).is_equal(id)
+		assert_bool(res.class_action_id != "").is_true()   # crew 有职业动词
+
+# 破阵先锋（MVP 爆发）所需的剑豪+铁壁起始配对存在于起始编制。
+func test_starting_crew_includes_vanguard_breach_pair() -> void:
+	var sword := ResourceLoader.load("res://assets/data/units/crew_swordsman_01.tres")
+	var bulwark := ResourceLoader.load("res://assets/data/units/crew_bulwark_01.tres")
+	assert_str(sword.unit_class).is_equal("swordsman")
+	assert_str(sword.recruit_pool_tier).is_equal("starting")
+	assert_str(bulwark.unit_class).is_equal("bulwark")
+	assert_str(bulwark.recruit_pool_tier).is_equal("starting")

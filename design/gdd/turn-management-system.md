@@ -1,8 +1,19 @@
 # 回合管理系统 (Turn Management System)
 
-> **Status**: Approved
+> **Status**: Approved — ⚠️ **部分被 2026-06-20 设计改动取代（见下方通知）**
 > **Author**: user + agents
 > **Last Updated**: 2026-06-13
+
+> ## ⚠️ 设计改动通知（2026-06-20，用户裁决，playtest 后）
+> 本 GDD 原定的 **先攻交替回合制**（initiative 队列 + 单位逐个 ACTIVE_TURN）与 **ROUND_LIMIT=8 超时失败**
+> 已被取代为 **阶段制 + 打到全灭**：
+> - 每轮 = **我方回合**（玩家自由点选指挥己方单位，任意顺序）→ **敌方回合**（敌方依次自动行动）。
+> - **无回合上限**；胜利 = 敌方全灭，失败 = 我方全灭（即时检测）。
+> - 受影响：先攻队列/公式1、ROUND_LIMIT、last_round_warning、ACTIVE_TURN/get_current_unit_id/end_current_turn
+>   均作废；新增 player_phase_started/enemy_phase_started 信号、end_player_phase()。
+> 实现见 `src/battle/turn_manager.gd`（已重写）+ 设计/计划见 `docs/superpowers/specs|plans/2026-06-20-player-turn-input-hud*`。
+> 本正文其余章节（先攻公式、回合上限相关）**待后续完整重修**；当前以实现+本通知为准。
+
 > **Implements Pillar**: 关键回合的爆发（计时骨架）；十分钟一场爽局（节奏约束）
 
 ## Overview

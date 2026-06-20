@@ -42,21 +42,24 @@ func _add(faction: String, pos: Vector2i, move_range: int, base_damage: int = 3,
 	_gb.place_unit(bid, pos)
 	return bid
 
-# 敌方在其回合自动攻击相邻友方（turn flow → enemy_turn_started → AI → execute_attack）
-func test_enemy_attacks_adjacent_ally_on_turn() -> void:
-	var ally := _add("crew", Vector2i(0, 1), 0)        # move0 → 先攻最低，敌方先行
+# 敌方回合自动攻击相邻友方（敌方回合 → enemy_turn_started → AI → execute_attack）
+func test_enemy_attacks_adjacent_ally_on_enemy_phase() -> void:
+	var ally := _add("crew", Vector2i(0, 1), 0)
 	_add("enemy", Vector2i(0, 0), 3, 3, 1)             # 邻接 ally
 	_tm.start_battle()
+	_tm.end_player_phase()                              # 触发敌方回合
 	assert_int(_tm.get_unit(ally).current_hp).is_equal(3)
 
-# 敌方行动完毕后回合推进至下一单位
-func test_turn_advances_after_enemy_acts() -> void:
-	var ally := _add("crew", Vector2i(0, 1), 0)
+# 敌方回合结束后回到下一轮我方回合
+func test_returns_to_player_phase_after_enemy_phase() -> void:
+	_add("crew", Vector2i(0, 1), 0)
 	_add("enemy", Vector2i(0, 0), 3)
 	_tm.start_battle()
-	assert_int(_tm.get_current_unit_id()).is_equal(ally)
+	_tm.end_player_phase()
+	assert_int(_tm.get_battle_state()).is_equal(TurnManager.BattleState.PLAYER_PHASE)
+	assert_int(_tm.get_current_round()).is_equal(2)
 
-# ROUND_START 为所有敌方声明意图（intent_declared）
+# 我方回合开始（round_started）为所有敌方声明意图（intent_declared）
 func test_round_start_declares_enemy_intents() -> void:
 	_add("crew", Vector2i(0, 1), 0)
 	_add("enemy", Vector2i(5, 5), 3)
@@ -68,11 +71,12 @@ func test_round_start_declares_enemy_intents() -> void:
 	EventBus.intent_declared.disconnect(cb)
 	assert_bool(count[0] >= 2).is_true()
 
-# 够不着的敌方在其回合向友方移动靠近
+# 够不着的敌方在敌方回合向友方移动靠近
 func test_enemy_moves_toward_distant_ally() -> void:
-	var ally := _add("crew", Vector2i(0, 7), 0)
+	_add("crew", Vector2i(0, 7), 0)
 	var enemy := _add("enemy", Vector2i(0, 0), 2, 3, 1)   # 距 ally manhattan 7，move2
 	_tm.start_battle()
+	_tm.end_player_phase()
 	var e := _tm.get_unit(enemy)
+	# 敌方回合已向 ally 靠近（位置变化为证；has_moved 于下一轮我方回合开始已被重置，不可断言）。
 	assert_bool(GridBoard.manhattan(e.grid_position, Vector2i(0, 7)) < 7).is_true()
-	assert_bool(e.has_moved).is_true()
