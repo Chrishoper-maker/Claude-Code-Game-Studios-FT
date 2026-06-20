@@ -41,11 +41,26 @@ var current_island_index: int = -1
 var roster: Array[CrewDefinition] = []
 var _downed_this_run: Array[int] = []     # 本 run 永久阵亡的运行时 id（R1 公式须排除）
 
+var pending_deploy: Array[CrewDefinition] = []   # 本场出场名单（confirm_deploy 写，BattleScene 读）
+var last_run_won: bool = false                   # run-end 页据此判「出航成功/全员阵亡」
+var _excluded_offers: Array[String] = []         # 本 run 落选 unit_id（不再 offer）
+var _last_offers: Array[String] = []             # 本批候选 unit_id（confirm_recruit 据此排除其余）
+var _rng := RandomNumberGenerator.new()          # 招募抽样（测试可 seed；断言不变量）
+
+# 导航接缝（DI over singleton）：默认转调 SceneManager，单测覆盖为 no-op 以免真的切场景。
+var _goto_battle: Callable
+var _goto_route: Callable
+func _default_goto_battle() -> void: SceneManager.goto_battle()
+func _default_goto_route() -> void: SceneManager.goto_route()
+
 func _ready() -> void:
 	# 映射完整性守卫：新增 RunPhase 而漏更新 _PHASE_TO_STRING 时立即触发
 	assert(_PHASE_TO_STRING.size() == RunPhase.size(),
 		"RunManager: _PHASE_TO_STRING 不完整 — 新增 RunPhase 后须同步更新")
+	_goto_battle = _default_goto_battle
+	_goto_route = _default_goto_route
 	EventBus.battle_won.connect(_on_battle_won)
+	EventBus.battle_lost.connect(_on_battle_lost)
 	EventBus.crew_member_downed.connect(_on_crew_member_downed)
 
 # ── 状态转换（ADR-0004：唯一转换入口 + 进入时发信号）──
@@ -69,11 +84,16 @@ func _on_run_phase_entered(phase: RunPhase) -> void:
 # ── Run 生命周期（route-recruitment-system）──
 
 # 起航：起始编制加入 roster，进入首岛部署。
-# TODO(route epic)：从 UnitDataManager 取 recruit_pool_tier=="starting" 的 CrewDefinition 填 roster。
 func start_run() -> void:
 	roster.clear()
+	_excluded_offers.clear()
+	_last_offers.clear()
+	pending_deploy.clear()
 	_downed_this_run.clear()
 	current_island_index = -1
+	for def in UnitDataManager.get_all_units():
+		if def is CrewDefinition and (def as CrewDefinition).recruit_pool_tier == "starting":
+			roster.append(def as CrewDefinition)
 	_set_run_phase(RunPhase.RUN_DEPLOYING)
 
 func get_roster() -> Array[CrewDefinition]:
@@ -96,11 +116,20 @@ func confirm_deploy(_selected_ids: Array) -> void:
 # 战斗胜利 → 招募（或终局）。ADR-0002：RunManager 是发射方，再调 SceneManager。
 func _on_battle_won() -> void:
 	if current_island_index + 1 >= ISLAND_COUNT_MAX:
+		last_run_won = true
 		_set_run_phase(RunPhase.RUN_END)
 		EventBus.run_completed.emit(true, current_island_index + 1, roster.duplicate())
+		_goto_route.call()
 		return
 	_set_run_phase(RunPhase.RUN_RECRUITING)      # 发 run_phase_changed("RECRUITING")
-	SceneManager.goto_route()
+	_goto_route.call()
+
+# 战斗失败 → run 终局（全员阵亡）。切回 RouteScene 显示 run-end。
+func _on_battle_lost() -> void:
+	last_run_won = false
+	_set_run_phase(RunPhase.RUN_END)
+	EventBus.run_completed.emit(false, current_island_index + 1, roster.duplicate())
+	_goto_route.call()
 
 func _on_crew_member_downed(unit_id: int) -> void:
 	if not _downed_this_run.has(unit_id):
