@@ -134,3 +134,26 @@ func test_confirm_recruit_adds_choice_excludes_rest() -> void:
 	assert_bool(ids.has(chosen)).is_true()
 	assert_bool(RunManager._excluded_offers.has(rest)).is_true()
 	assert_str(RunManager.current_phase).is_equal("DEPLOYING")
+
+func test_confirm_deploy_builds_pending_and_advances_island() -> void:
+	# Arrange: roster 已含起始编制（before_test）
+	var ids: Array[String] = []
+	for c in RunManager.roster:
+		ids.append((c as CrewDefinition).id)
+	var island_before := RunManager.current_island_index
+	# Act
+	RunManager.confirm_deploy(ids)
+	# Assert
+	assert_int(RunManager.get_pending_deploy().size()).is_equal(ids.size())
+	assert_int(RunManager.current_island_index).is_equal(island_before + 1)
+	assert_str(RunManager.current_phase).is_equal("BATTLE")
+
+func test_confirm_deploy_filters_to_selected_ids() -> void:
+	var all_ids: Array[String] = []
+	for c in RunManager.roster:
+		all_ids.append((c as CrewDefinition).id)
+	assert_int(all_ids.size()).is_greater_equal(1)
+	var subset: Array = [all_ids[0]]
+	RunManager.confirm_deploy(subset)
+	assert_int(RunManager.get_pending_deploy().size()).is_equal(1)
+	assert_str((RunManager.get_pending_deploy()[0] as CrewDefinition).id).is_equal(all_ids[0])

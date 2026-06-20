@@ -145,11 +145,18 @@ func confirm_recruit(unit_id: String) -> void:
 	_last_offers.clear()
 	_set_run_phase(RunPhase.RUN_DEPLOYING)
 
-# 部署确认 → 进入战斗（ADR-0002 场景切换序列）。
-func confirm_deploy(_selected_ids: Array) -> void:
+# 部署确认 → 进入战斗（ADR-0002 场景切换序列）。pending_deploy = roster 中被选 id 的 defs。
+func confirm_deploy(selected_ids: Array) -> void:
+	pending_deploy.clear()
+	for c in roster:
+		if selected_ids.has(c.id):
+			pending_deploy.append(c)
 	current_island_index += 1
 	_set_run_phase(RunPhase.RUN_ISLAND_BATTLE)   # 发 run_phase_changed("BATTLE")
-	SceneManager.goto_battle()
+	_goto_battle.call()
+
+func get_pending_deploy() -> Array[CrewDefinition]:
+	return pending_deploy
 
 # 战斗胜利 → 招募（或终局）。ADR-0002：RunManager 是发射方，再调 SceneManager。
 func _on_battle_won() -> void:
