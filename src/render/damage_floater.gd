@@ -55,13 +55,14 @@ func _spawn(unit_id: int, text: String, color: Color, font_size: int, duration: 
 	label.add_theme_color_override("font_outline_color", Color.BLACK)
 	label.add_theme_constant_override("outline_size", 8)
 	add_child(label)
-	label.position = cam.unproject_position(world) - label.size * 0.5
+	var sz := label.get_minimum_size()
+	label.position = cam.unproject_position(world) - sz * 0.5
 	var tw := create_tween()
 	tw.set_parallel(true)
 	tw.tween_property(label, "position:y", label.position.y - RISE_PX, duration)
 	tw.tween_property(label, "modulate:a", 0.0, duration).set_ease(Tween.EASE_IN)
 	if punch:
-		label.pivot_offset = label.size * 0.5
+		label.pivot_offset = sz * 0.5
 		label.scale = Vector2(1.4, 1.4)
 		tw.tween_property(label, "scale", Vector2.ONE, 0.18).set_trans(Tween.TRANS_BACK)
 	tw.chain().tween_callback(label.queue_free)
