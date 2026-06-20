@@ -1,17 +1,15 @@
 # 场景切换控制器（autoload #5，必须最后一条，ADR-0002）。
 # 封装 SceneTree.change_scene_to_packed()，提供类型化 goto_battle()/goto_route()。
 # run_phase_changed 由调用方（RunManager）在切换前发射，本类不发射。
-# PackedScene 在 Project Settings → Autoload Inspector 中赋值（BattleScene/RouteScene 实现后）。
+# 注：script 型 autoload 无法在 Inspector 赋 @export，故用 preload 常量持有场景（确定性、可headless）。
 # （autoload 脚本不声明 class_name：注册名 SceneManager 即全局单例访问）
 extends Node
 
-@export var battle_scene: PackedScene
-@export var route_scene: PackedScene
+const BATTLE_SCENE := preload("res://scenes/BattleScene.tscn")
+const ROUTE_SCENE := preload("res://scenes/RouteScene.tscn")
 
 func goto_battle() -> void:
-	assert(battle_scene != null, "SceneManager: battle_scene 未在 Inspector 中赋值")
-	get_tree().change_scene_to_packed(battle_scene)
+	get_tree().change_scene_to_packed(BATTLE_SCENE)
 
 func goto_route() -> void:
-	assert(route_scene != null, "SceneManager: route_scene 未在 Inspector 中赋值")
-	get_tree().change_scene_to_packed(route_scene)
+	get_tree().change_scene_to_packed(ROUTE_SCENE)
