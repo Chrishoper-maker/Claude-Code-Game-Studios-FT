@@ -23,6 +23,7 @@ var instance_id: int
 var _mesh: MeshInstance3D
 var _move_tween: Tween
 var _hp_label: Label3D
+var _base_albedo: Color
 
 # 由 UnitRenderer 生成时调用。
 func setup(unit_class: String, faction: String, inst_id: int, grid_pos: Vector2i) -> void:
@@ -71,6 +72,7 @@ func _build_whitebox(unit_class: String, faction: String) -> void:
 	if faction == "enemy":
 		base = base.darkened(ENEMY_DARKEN)
 	mat.albedo_color = base
+	_base_albedo = base
 	mat.rim_enabled = true
 	mat.rim = 0.7
 	mat.rim_tint = 0.5
@@ -89,8 +91,24 @@ func move_to(grid_pos: Vector2i) -> void:
 	_move_tween = create_tween()
 	_move_tween.tween_property(self, "global_position", target, MOVE_TWEEN_DURATION)
 
+# 命中闪白再回原色（~0.15s）。由 UnitRenderer 在 damage_dealt 时调用。
+func flash_hit() -> void:
+	if _mesh == null:
+		return
+	var mat := _mesh.material_override as StandardMaterial3D
+	if mat == null:
+		return
+	mat.albedo_color = Color.WHITE
+	var tw := create_tween()
+	tw.tween_property(mat, "albedo_color", _base_albedo, 0.15)
+
+# 击倒退场：快速下沉 + 缩小后隐藏（KO 大字由 DamageFloater 同时弹出）。
 func set_downed() -> void:
-	visible = false
+	var tw := create_tween()
+	tw.set_parallel(true)
+	tw.tween_property(self, "position:y", position.y - 0.5, 0.3)
+	tw.tween_property(self, "scale", Vector3(0.1, 0.1, 0.1), 0.3)
+	tw.chain().tween_callback(func() -> void: visible = false)
 
 func set_selected(selected: bool) -> void:
 	if _mesh == null:
