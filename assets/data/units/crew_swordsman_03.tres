@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="CrewDefinition" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://src/data/crew_definition.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "crew_swordsman_03"
+display_name = "浪人·辰"
+faction = "crew"
+unit_class = "swordsman"
+max_hp = 10
+move_range = 3
+attack_range = 1
+base_damage = 3
+class_action_id = "slash"
+title = "流浪剑客"
+battle_cry = "一刀两断。"
+persona_line = "剑出，话止。"
+recruit_pool_tier = "pool"
+portrait_id = "swordsman_03"
+model_id = "whitebox_swordsman"

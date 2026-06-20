@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="CrewDefinition" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://src/data/crew_definition.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "crew_navigator_01"
+display_name = "舵手·星"
+faction = "crew"
+unit_class = "navigator"
+max_hp = 8
+move_range = 4
+attack_range = 1
+base_damage = 2
+class_action_id = "displace"
+title = "领航舵手"
+battle_cry = "跟紧我的航线！"
+persona_line = "风往哪吹，我说了算。"
+recruit_pool_tier = "pool"
+portrait_id = "navigator_01"
+model_id = "whitebox_navigator"

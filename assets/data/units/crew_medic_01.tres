@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="CrewDefinition" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://src/data/crew_definition.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "crew_medic_01"
+display_name = "药师·苓"
+faction = "crew"
+unit_class = "medic"
+max_hp = 8
+move_range = 3
+attack_range = 1
+base_damage = 2
+class_action_id = "heal"
+title = "随船医师"
+battle_cry = "撑住，有我在！"
+persona_line = "伤口我来缝，命你自己保。"
+recruit_pool_tier = "pool"
+portrait_id = "medic_01"
+model_id = "whitebox_medic"
