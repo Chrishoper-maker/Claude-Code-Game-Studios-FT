@@ -1,4 +1,4 @@
-[gd_scene load_steps=17 format=3]
+[gd_scene load_steps=16 format=3]
 
 [ext_resource type="Script" path="res://src/battle/battle_scene.gd" id="1_root"]
 [ext_resource type="Script" path="res://src/board/grid_board.gd" id="2_gb"]
@@ -15,7 +15,6 @@
 [ext_resource type="Script" path="res://src/ui/battle_hud.gd" id="13_hud"]
 [ext_resource type="Script" path="res://src/render/damage_floater.gd" id="14_df"]
 [ext_resource type="Script" path="res://src/fx/camera_shake.gd" id="15_cs"]
-[ext_resource type="Script" path="res://src/ui/battle_result_overlay.gd" id="16_ro"]
 
 [node name="BattleScene" type="Node3D"]
 script = ExtResource("1_root")
@@ -64,9 +63,6 @@ script = ExtResource("14_df")
 
 [node name="BurstLayer" type="CanvasLayer" parent="."]
 layer = 10
-
-[node name="BattleResultOverlay" type="Control" parent="BurstLayer"]
-script = ExtResource("16_ro")
 
 [node name="CameraShake" type="Node" parent="."]
 script = ExtResource("15_cs")

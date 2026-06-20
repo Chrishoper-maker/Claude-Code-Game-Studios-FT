@@ -17,11 +17,7 @@ extends Node3D
 @onready var _battle_hud: BattleHUD = $HUDLayer/BattleHUD
 @onready var _damage_floater: DamageFloater = $HUDLayer/DamageFloater
 @onready var _camera_shake: CameraShake = $CameraShake
-@onready var _battle_result_overlay: BattleResultOverlay = $BurstLayer/BattleResultOverlay
-
-# TEMP：DeployScreen story 落地前的起始 crew 引导（破阵先锋配对，两格相邻 → 可触发爆发）。
-const _BOOTSTRAP_CREW := ["crew_swordsman_01", "crew_bulwark_01"]
-const _BOOTSTRAP_CELLS := [Vector2i(3, 7), Vector2i(3, 6)]
+# 出场名单由 RunManager.get_pending_deploy() 提供（route confirm_deploy 写入）。
 
 func _ready() -> void:
 	# 依赖注入（DI over singleton）：按依赖关系接线兄弟系统，再引导战斗。
@@ -32,27 +28,30 @@ func _ready() -> void:
 	_bond_gauge_burst.setup(_grid_board, _turn_manager, _battle_resolution)  # 订阅充能信号
 	_player_turn_controller.setup(_turn_manager, _grid_board, _battle_resolution, _bond_gauge_burst, _board_highlighter, _battle_hud)
 	_battle_hud.setup(_player_turn_controller, _turn_manager)
-	# TEMP：航线/招募元层未做 → 断开 RunManager 的胜利跳转（否则 goto_route 因 route_scene 未赋值 assert 崩）。
-	if EventBus.battle_won.is_connected(RunManager._on_battle_won):
-		EventBus.battle_won.disconnect(RunManager._on_battle_won)
 	_damage_floater.setup(_unit_renderer, func(id: int) -> String: return _faction_of(id))
 	_camera_shake.setup(get_viewport().get_camera_3d())
-	_battle_result_overlay.setup()
 	# architecture.md 4d：引导战斗。
 	_battle_map.load_map(RunManager.current_island_index)   # 读 autoload 持久状态 → 部署敌方
-	_deploy_starting_crew()                                 # TEMP：自动部署玩家方
+	_deploy_run_crew()                                      # 按 run roster 自动部署玩家方
 	_spawn_all_views()                                      # 已部署单位 → 生成视觉节点
 	_turn_manager.start_battle()                            # → EventBus.battle_started
 
-# TEMP（待 DeployScreen story 取代）：自动部署起始 crew，否则无友方 → 秒败、画面只剩敌人。
-func _deploy_starting_crew() -> void:
-	var crew_defs: Array = []
-	for crew_id in _BOOTSTRAP_CREW:
-		var def := UnitDataManager.get_unit(crew_id)
-		if def == null:
-			return
-		crew_defs.append(def)
-	_battle_map.deploy_crew(crew_defs, _BOOTSTRAP_CELLS)
+# 按 run roster 部署：读 pending_deploy → 取前 N 个，自动排入部署区前 N 个可用格。
+# N = min(出场名单数, 可用部署格数)。A 全员自动部署，忽略 DEPLOY_LIMIT（手动选归子项目 B）。
+func _deploy_run_crew() -> void:
+	var pending := RunManager.get_pending_deploy()
+	if pending.is_empty():
+		return
+	var cells := _battle_map.get_deploy_zone_available()
+	var n: int = min(pending.size(), cells.size())
+	if n <= 0:
+		return
+	var defs: Array = []
+	var positions: Array = []
+	for i in n:
+		defs.append(pending[i])
+		positions.append(cells[i])
+	_battle_map.deploy_crew(defs, positions)
 
 # 为所有已注册单位生成 UnitView（数据→视觉单向，ADR-0007）。
 func _spawn_all_views() -> void:
