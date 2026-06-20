@@ -74,3 +74,6 @@ func test_battle_scene_boots_deploys_and_runs() -> void:
 	assert_int(scene._turn_manager.get_alive_allies().size()).is_equal(2)
 	# 阶段制：start_battle 后停在我方回合，等待玩家自由点选指挥（非终态）。
 	assert_int(scene._turn_manager.get_battle_state()).is_equal(TurnManager.BattleState.PLAYER_PHASE)
+	# I-1 接线：BattleScene._ready 须把 battle_started 连到 BattleMap.on_battle_started，
+	# 否则地图状态机停在 MAP_READY（EC-9「战斗进行中拒绝重新加载」守卫永不生效）。
+	assert_int(scene._battle_map.get_map_state()).is_equal(BattleMap.MapState.MAP_ACTIVE)

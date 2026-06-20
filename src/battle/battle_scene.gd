@@ -30,6 +30,12 @@ func _ready() -> void:
 	_battle_hud.setup(_player_turn_controller, _turn_manager)
 	_damage_floater.setup(_unit_renderer, func(id: int) -> String: return _faction_of(id))
 	_camera_shake.setup(get_viewport().get_camera_3d())
+	# 接 BattleMap 状态机（battle-map-system：由 BattleScene 把 EventBus 信号连到 on_*）。
+	# MAP_READY→ACTIVE（EC-9 守卫：战斗进行中拒绝重新加载）→RESOLVED。仅连有发射方的三信号；
+	# map_reset_requested 暂无发射方（turn-management/route epic 落地后再连 on_map_reset）。
+	EventBus.battle_started.connect(_battle_map.on_battle_started)
+	EventBus.battle_won.connect(_battle_map.on_battle_won)
+	EventBus.battle_lost.connect(_battle_map.on_battle_lost)
 	# architecture.md 4d：引导战斗。
 	_battle_map.load_map(RunManager.current_island_index)   # 读 autoload 持久状态 → 部署敌方
 	_deploy_run_crew()                                      # 按 run roster 自动部署玩家方
