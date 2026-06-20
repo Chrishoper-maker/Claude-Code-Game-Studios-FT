@@ -23,9 +23,9 @@ func _begin_run() -> void:
 
 # 收集 roster 全员 id 提交部署（A 全员自动部署）。
 func _deploy_current_roster() -> void:
-	var ids: Array = []
-	for c in RunManager.get_roster():
-		ids.append((c as CrewDefinition).id)
+	var ids: Array[String] = []
+	for c in RunManager.get_roster():   # get_roster() 已是 Array[CrewDefinition]，无需再 cast
+		ids.append(c.id)
 	RunManager.confirm_deploy(ids)
 
 # 三选一招募卡。候选为空 → 跳过招募直接部署下一岛。

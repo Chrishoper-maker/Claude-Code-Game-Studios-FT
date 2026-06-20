@@ -52,8 +52,8 @@ func _deploy_run_crew() -> void:
 	var n: int = min(pending.size(), cells.size())
 	if n <= 0:
 		return
-	var defs: Array = []
-	var positions: Array = []
+	var defs: Array[CrewDefinition] = []
+	var positions: Array[Vector2i] = []
 	for i in n:
 		defs.append(pending[i])
 		positions.append(cells[i])

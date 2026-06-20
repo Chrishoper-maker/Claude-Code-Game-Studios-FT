@@ -70,7 +70,7 @@ func test_battle_scene_boots_deploys_and_runs() -> void:
 	assert_int(started[0]).is_equal(1)
 	# battle_map_001 部署 4 个敌方单位
 	assert_int(scene._turn_manager.get_alive_enemies().size()).is_equal(4)
-	# roster 驱动自动部署 2 名起始 crew（阿斩 + 铁球梅莉）
+	# roster 驱动自动部署起始编制（STARTING_CREW=2；具体身份由 starting-tier crew 数据决定）
 	assert_int(scene._turn_manager.get_alive_allies().size()).is_equal(2)
 	# 阶段制：start_battle 后停在我方回合，等待玩家自由点选指挥（非终态）。
 	assert_int(scene._turn_manager.get_battle_state()).is_equal(TurnManager.BattleState.PLAYER_PHASE)

@@ -45,7 +45,7 @@ var pending_deploy: Array[CrewDefinition] = []   # 本场出场名单（confirm_
 var last_run_won: bool = false                   # run-end 页据此判「出航成功/全员阵亡」
 var _excluded_offers: Array[String] = []         # 本 run 落选 unit_id（不再 offer）
 var _last_offers: Array[String] = []             # 本批候选 unit_id（confirm_recruit 据此排除其余）
-var _rng := RandomNumberGenerator.new()          # 招募抽样（测试可 seed；断言不变量）
+var _rng: RandomNumberGenerator = RandomNumberGenerator.new()  # 招募抽样（测试可 seed；断言不变量）
 
 # 导航接缝（DI over singleton）：默认转调 SceneManager，单测覆盖为 no-op 以免真的切场景。
 var _goto_battle: Callable
@@ -140,6 +140,8 @@ func confirm_recruit(unit_id: String) -> void:
 	var def := UnitDataManager.get_unit(unit_id)
 	if def is CrewDefinition:
 		roster.append(def as CrewDefinition)
+	else:
+		push_error("RunManager.confirm_recruit: unit_id 非 CrewDefinition 或不存在 — %s" % unit_id)
 	for offered_id in _last_offers:
 		if offered_id != unit_id and not _excluded_offers.has(offered_id):
 			_excluded_offers.append(offered_id)
