@@ -79,9 +79,58 @@ func test_battle_won_final_sets_last_run_won_true() -> void:
 	assert_bool(RunManager.last_run_won).is_true()
 
 func test_battle_lost_ends_run_with_loss() -> void:
-	var monitor := monitor_signals(EventBus)
+	var monitor := monitor_signals(EventBus, false)  # false = 不 auto_free autoload
 	RunManager.current_island_index = 2
 	RunManager._on_battle_lost()
 	assert_str(RunManager.current_phase).is_equal("RUN_END")
 	assert_bool(RunManager.last_run_won).is_false()
 	await assert_signal(monitor).is_emitted("run_completed", [false, 3, RunManager.roster])
+
+func test_offers_are_pool_tier_and_exclude_roster() -> void:
+	var roster_ids: Dictionary = {}
+	for c in RunManager.roster:
+		roster_ids[(c as CrewDefinition).id] = true
+	var offers := RunManager.get_recruit_offers()
+	assert_int(offers.size()).is_less_equal(RunManager.RECRUIT_OFFER_COUNT)
+	for o in offers:
+		assert_str((o as CrewDefinition).recruit_pool_tier).is_equal("pool")
+		assert_bool(roster_ids.has((o as CrewDefinition).id)).is_false()
+
+func test_offers_have_distinct_unit_classes() -> void:
+	var offers := RunManager.get_recruit_offers()
+	var seen: Dictionary = {}
+	for o in offers:
+		var cls := (o as CrewDefinition).unit_class
+		assert_bool(seen.has(cls)).is_false()
+		seen[cls] = true
+
+func test_offers_exclude_excluded_ids() -> void:
+	var first := RunManager.get_recruit_offers()
+	# 把首批全部塞入排除集，再抽：不得再出现这些 id
+	for o in first:
+		RunManager._excluded_offers.append((o as CrewDefinition).id)
+	var second := RunManager.get_recruit_offers()
+	for o in second:
+		assert_bool(RunManager._excluded_offers.has((o as CrewDefinition).id)).is_false()
+
+func test_offers_empty_when_pool_exhausted() -> void:
+	for def in UnitDataManager.get_all_units():
+		if def is CrewDefinition and (def as CrewDefinition).recruit_pool_tier == "pool":
+			RunManager._excluded_offers.append((def as CrewDefinition).id)
+	var offers := RunManager.get_recruit_offers()
+	assert_int(offers.size()).is_equal(0)
+
+func test_confirm_recruit_adds_choice_excludes_rest() -> void:
+	var offers := RunManager.get_recruit_offers()
+	assert_int(offers.size()).is_greater_equal(2)   # 需≥2 才能验「其余被排除」
+	var chosen := (offers[0] as CrewDefinition).id
+	var rest := (offers[1] as CrewDefinition).id
+	var before := RunManager.roster.size()
+	RunManager.confirm_recruit(chosen)
+	assert_int(RunManager.roster.size()).is_equal(before + 1)
+	var ids: Array[String] = []
+	for c in RunManager.roster:
+		ids.append((c as CrewDefinition).id)
+	assert_bool(ids.has(chosen)).is_true()
+	assert_bool(RunManager._excluded_offers.has(rest)).is_true()
+	assert_str(RunManager.current_phase).is_equal("DEPLOYING")

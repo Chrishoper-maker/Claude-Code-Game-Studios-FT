@@ -99,12 +99,50 @@ func start_run() -> void:
 func get_roster() -> Array[CrewDefinition]:
 	return roster
 
-# 三选一招募候选。TODO(route epic)：无放回随机 + 同职业排除 + 落选者本 run 不再出现。
+# 三选一招募候选（GDD Rule 1-2 / R1）：无放回随机 ≤3 名，且三者 unit_class 互不相同
+# （某职业可用不足时豁免）。排除 roster 内与 _excluded_offers 内 unit_id。写入 _last_offers。
 func get_recruit_offers() -> Array[CrewDefinition]:
-	return []
+	var roster_ids: Dictionary = {}
+	for c in roster:
+		roster_ids[c.id] = true
+	var pool: Array[CrewDefinition] = []
+	for def in UnitDataManager.get_all_units():
+		if def is CrewDefinition:
+			var crew := def as CrewDefinition
+			if crew.recruit_pool_tier == "pool" \
+					and not roster_ids.has(crew.id) \
+					and not _excluded_offers.has(crew.id):
+				pool.append(crew)
+	# Fisher-Yates 用持有的 _rng（确定性，测试可 seed）。
+	for i in range(pool.size() - 1, 0, -1):
+		var j := _rng.randi_range(0, i)
+		var tmp := pool[i]
+		pool[i] = pool[j]
+		pool[j] = tmp
+	# 取前 ≤3 名，职业互不相同。
+	var offers: Array[CrewDefinition] = []
+	var seen_classes: Dictionary = {}
+	for crew in pool:
+		if offers.size() >= RECRUIT_OFFER_COUNT:
+			break
+		if seen_classes.has(crew.unit_class):
+			continue
+		seen_classes[crew.unit_class] = true
+		offers.append(crew)
+	_last_offers.clear()
+	for o in offers:
+		_last_offers.append(o.id)
+	return offers
 
-# TODO(route epic)：将选中候选加入 roster，落选者移出本 run 候选池，转 DEPLOYING。
-func confirm_recruit(_unit_id: String) -> void:
+# 选中候选加入 roster；本批其余候选进 _excluded_offers（本 run 不再 offer）；→DEPLOYING。
+func confirm_recruit(unit_id: String) -> void:
+	var def := UnitDataManager.get_unit(unit_id)
+	if def is CrewDefinition:
+		roster.append(def as CrewDefinition)
+	for offered_id in _last_offers:
+		if offered_id != unit_id and not _excluded_offers.has(offered_id):
+			_excluded_offers.append(offered_id)
+	_last_offers.clear()
 	_set_run_phase(RunPhase.RUN_DEPLOYING)
 
 # 部署确认 → 进入战斗（ADR-0002 场景切换序列）。
