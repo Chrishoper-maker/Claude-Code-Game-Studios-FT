@@ -200,3 +200,7 @@ func get_pending_downed_notice() -> Array[String]:
 
 func clear_downed_notice() -> void:
 	_downed_pending_notice.clear()
+
+# 本 run 累计阵亡的持久 crew id 副本（run-end 总结/未来存档）。
+func get_downed_this_run() -> Array[String]:
+	return _downed_this_run.duplicate()

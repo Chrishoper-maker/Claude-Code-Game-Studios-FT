@@ -77,6 +77,11 @@ func test_pending_notice_deduped() -> void:
 	RunManager._on_crew_member_downed(id)
 	assert_int(RunManager.get_pending_downed_notice().size()).is_equal(1)
 
+func test_get_downed_this_run_returns_fallen() -> void:
+	var id: String = (RunManager.roster[0] as CrewDefinition).id
+	RunManager._on_crew_member_downed(id)
+	assert_bool(RunManager.get_downed_this_run().has(id)).is_true()
+
 func test_start_run_fills_roster_with_starting_crew() -> void:
 	# Arrange/Act done in before_test
 	# Assert: roster 全为 starting tier，且数量 == 注册表中 starting crew 数

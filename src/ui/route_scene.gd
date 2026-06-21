@@ -158,7 +158,7 @@ func _on_recruit_chosen(unit_id: String) -> void:
 	RunManager.confirm_recruit(unit_id)
 	_enter_deploy()
 
-# run-end：出航成功 / 全员阵亡 + 重新出航。
+# run-end：结果 + 运行总结（抵达岛数 / 幸存 / 本航阵亡）+ 重新出航。
 func _show_run_end() -> void:
 	_active_screen = "run_end"
 	var box := VBoxContainer.new()
@@ -167,6 +167,28 @@ func _show_run_end() -> void:
 	var result := Label.new()
 	result.text = "出航成功!" if RunManager.last_run_won else "全员阵亡…"
 	box.add_child(result)
+	var reached := Label.new()
+	reached.text = "抵达第 %d 岛 / 共 %d" % [RunManager.current_island_index + 1, RunManager.ISLAND_COUNT_MAX]
+	box.add_child(reached)
+	var survivors := Label.new()
+	survivors.text = "幸存船员：%d 名" % RunManager.get_roster().size()
+	box.add_child(survivors)
+	for c in RunManager.get_roster():
+		var line := Label.new()
+		line.text = "  %s · %s" % [c.unit_class, c.display_name]
+		box.add_child(line)
+	var fallen := RunManager.get_downed_this_run()
+	if not fallen.is_empty():
+		var fallen_title := Label.new()
+		fallen_title.text = "本航阵亡：%d 名" % fallen.size()
+		box.add_child(fallen_title)
+		for fid in fallen:
+			var def := UnitDataManager.get_unit(fid)
+			if def is CrewDefinition:
+				var crew := def as CrewDefinition
+				var line := Label.new()
+				line.text = "  %s · %s" % [crew.unit_class, crew.display_name]
+				box.add_child(line)
 	var restart := Button.new()
 	restart.text = "重新出航"
 	restart.pressed.connect(_on_restart_pressed)
