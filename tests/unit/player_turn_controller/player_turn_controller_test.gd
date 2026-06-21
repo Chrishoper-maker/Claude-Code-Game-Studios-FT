@@ -249,12 +249,20 @@ func test_heal_no_adjacent_ally_no_targets() -> void:
 	assert_array(ctx.ctrl.get_valid_targets()).is_empty()
 	assert_bool(ctx.ctrl.get_available_actions()["verb"]).is_false()
 
-# AC-5：cannon 仍未支持（保留警告，不进选靶、不耗动词）。
-func test_do_verb_cannon_unsupported_no_effect() -> void:
+# AC-5：cannon 选直线（≥最小射程）敌方，穿透命中 + 标记动词；近于最小射程者不可选。
+func test_do_verb_cannon_targets_inline_enemy_and_fires() -> void:
 	var ctx := _make_controller()
-	var gunner := _register(ctx.tm, ctx.gb, _make_def("crew", "gunner", 3, 2, 7, "cannon"), Vector2i(3, 6))
-	_register(ctx.tm, ctx.gb, _make_def("enemy", "swordsman", 2, 2, 6, ""), Vector2i(3, 3))
+	var gdef := _make_def("crew", "gunner", 3, 2, 7, "cannon")
+	gdef.attack_range = 3   # 炮手远程（fixture 默认 1，cannon 需更大射程）
+	var gunner := _register(ctx.tm, ctx.gb, gdef, Vector2i(3, 6))
+	_register(ctx.tm, ctx.gb, _make_def("enemy", "swordsman", 2, 2, 6, ""), Vector2i(3, 5))   # 曼哈顿1 <2 不可选
+	var far := _register(ctx.tm, ctx.gb, _make_def("enemy", "swordsman", 2, 2, 6, ""), Vector2i(3, 3))  # 同列 曼哈顿3 ∈[2,3] 可选
 	_begin_select(ctx, gunner)
 	ctx.ctrl.do_verb()
+	assert_int(ctx.ctrl.get_mode()).is_equal(PlayerTurnController.Mode.VERB)
+	assert_array(ctx.ctrl.get_valid_targets()).contains([Vector2i(3, 3)])
+	assert_array(ctx.ctrl.get_valid_targets()).not_contains([Vector2i(3, 5)])
+	ctx.ctrl.handle_cell_click(Vector2i(3, 3))
+	assert_bool(ctx.tm.get_unit(gunner).has_used_verb).is_true()
+	assert_int(ctx.tm.get_unit(far).current_hp).is_less(6)   # 穿透命中
 	assert_int(ctx.ctrl.get_mode()).is_equal(PlayerTurnController.Mode.IDLE)
-	assert_bool(ctx.tm.get_unit(gunner).has_used_verb).is_false()

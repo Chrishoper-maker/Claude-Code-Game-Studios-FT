@@ -166,6 +166,15 @@ func _compute_targets(mode: int) -> Array[Vector2i]:
 						var e: UnitInstance = _turn_manager.get_unit(eid)
 						if GridBoard.chebyshev(u.grid_position, e.grid_position) == 1:
 							cells.append(e.grid_position)
+				"cannon":
+					# 基本方向直线（同行/同列）且曼哈顿在 [最小射程, attack_range]（穿透可达）的敌方。
+					var rng := u.definition.attack_range
+					for eid in _turn_manager.get_alive_enemies():
+						var e: UnitInstance = _turn_manager.get_unit(eid)
+						var d := e.grid_position - u.grid_position
+						var man := GridBoard.manhattan(u.grid_position, e.grid_position)
+						if (d.x == 0 or d.y == 0) and man >= BattleResolution.GUNNER_MIN_RANGE and man <= rng:
+							cells.append(e.grid_position)
 			return cells
 		_:
 			return []
@@ -203,11 +212,11 @@ func do_verb() -> void:
 			_battle_resolution.execute_guard(_selected_unit_id, _selected_unit_id)
 		"aura":
 			_battle_resolution.execute_aura(_selected_unit_id)
-		"heal", "displace":
+		"heal", "displace", "cannon":
 			_begin_verb_targeting()   # 需选目标 → 进 VERB 选靶模式（不在此清模式）
 			return
 		_:
-			push_warning("PlayerTurnController.do_verb: MVP 未支持动词 %s（cannon 定向选靶留后续 story）" % u.definition.class_action_id)
+			push_warning("PlayerTurnController.do_verb: 未知动词 %s" % u.definition.class_action_id)
 			return
 	_set_mode(Mode.IDLE)
 
@@ -222,6 +231,8 @@ func _verb_type_for(class_action_id: String) -> int:
 			return BattleResolution.VerbType.HEAL
 		"displace":
 			return BattleResolution.VerbType.MOVE   # MOVE 分发到 execute_displace（方向引擎内推导）
+		"cannon":
+			return BattleResolution.VerbType.CANNON  # 沿基本方向穿透（方向引擎内推导）
 		_:
 			return -1
 
@@ -289,8 +300,8 @@ func get_available_actions() -> Dictionary:
 		var cid := u.definition.class_action_id
 		if cid in ["slash", "guard", "aura"]:
 			result["verb"] = true          # 无目标动词恒可用
-		elif cid in ["heal", "displace"]:
-			result["verb"] = not _compute_targets(Mode.VERB).is_empty()   # 需有相邻合法目标
+		elif cid in ["heal", "displace", "cannon"]:
+			result["verb"] = not _compute_targets(Mode.VERB).is_empty()   # 需有合法目标
 	return result
 
 func _color_for(mode: int) -> Color:
