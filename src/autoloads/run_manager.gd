@@ -235,8 +235,8 @@ func to_save_dict() -> Dictionary:
 
 # 反序列化恢复（直接赋 _phase，不发信号）。缺失 crew id 防御性跳过。
 func load_from_save_dict(d: Dictionary) -> void:
-	current_island_index = int(d.get("island_index", -1))
-	last_run_won = bool(d.get("last_run_won", false))
+	current_island_index = int(d.get("island_index", current_island_index))
+	last_run_won = bool(d.get("last_run_won", last_run_won))
 	roster.clear()
 	for rid in (d.get("roster", []) as Array):
 		var def := UnitDataManager.get_unit(str(rid))

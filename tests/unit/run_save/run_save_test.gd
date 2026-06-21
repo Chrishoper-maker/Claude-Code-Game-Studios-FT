@@ -52,3 +52,12 @@ func test_load_does_not_emit_phase_changed() -> void:
 	RunManager.load_from_save_dict({"phase": "RECRUITING", "island_index": 1})
 	assert_str(RunManager.current_phase).is_equal("RECRUITING")
 	await assert_signal(monitor).is_not_emitted("run_phase_changed")
+
+# 部分 dict 缺键时不破坏既有 island/last_run_won（非破坏性默认）。
+func test_load_partial_dict_preserves_absent_fields() -> void:
+	RunManager.current_island_index = 4
+	RunManager.last_run_won = true
+	RunManager.load_from_save_dict({"phase": "RECRUITING"})
+	assert_int(RunManager.current_island_index).is_equal(4)
+	assert_bool(RunManager.last_run_won).is_true()
+	assert_str(RunManager.current_phase).is_equal("RECRUITING")
