@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="CrewDefinition" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://src/data/crew_definition.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "crew_medic_02"
+display_name = "圣手·白鹭"
+faction = "crew"
+unit_class = "medic"
+max_hp = 8
+move_range = 3
+attack_range = 1
+base_damage = 2
+class_action_id = "heal"
+title = "悬赏解锁·医师"
+battle_cry = "别死在我面前！"
+persona_line = "我见过太多人倒下，不差你一个。"
+recruit_pool_tier = "unlockable"
+portrait_id = "medic_02"
+model_id = "whitebox_medic"

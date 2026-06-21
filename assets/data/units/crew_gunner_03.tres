@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="CrewDefinition" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://src/data/crew_definition.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "crew_gunner_03"
+display_name = "重炮·铁牙"
+faction = "crew"
+unit_class = "gunner"
+max_hp = 7
+move_range = 2
+attack_range = 3
+base_damage = 3
+class_action_id = "cannon"
+title = "悬赏解锁·炮手"
+battle_cry = "尝尝这一发！"
+persona_line = "悬赏越高，我的炮越响。"
+recruit_pool_tier = "unlockable"
+portrait_id = "gunner_03"
+model_id = "whitebox_gunner"

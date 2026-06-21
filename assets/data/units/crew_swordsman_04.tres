@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="CrewDefinition" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://src/data/crew_definition.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "crew_swordsman_04"
+display_name = "居合·霜"
+faction = "crew"
+unit_class = "swordsman"
+max_hp = 10
+move_range = 3
+attack_range = 1
+base_damage = 3
+class_action_id = "slash"
+title = "悬赏解锁·剑客"
+battle_cry = "一刀，足矣。"
+persona_line = "悬赏令上的名字，迟早是我的。"
+recruit_pool_tier = "unlockable"
+portrait_id = "swordsman_04"
+model_id = "whitebox_swordsman"
