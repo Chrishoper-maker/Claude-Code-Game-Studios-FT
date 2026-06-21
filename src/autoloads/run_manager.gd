@@ -41,6 +41,7 @@ var current_phase: String:
 var current_island_index: int = -1
 var roster: Array[CrewDefinition] = []
 var _downed_this_run: Array[String] = []  # 本 run 永久阵亡的持久 crew id（roster 移除 + 招募排除）
+var _downed_pending_notice: Array[String] = []  # 本场待展示阵亡通知的 crew id（RouteScene 弹卡后清空）
 
 var pending_deploy: Array[CrewDefinition] = []   # 本场出场名单（confirm_deploy 写，BattleScene 读）
 var last_run_won: bool = false                   # run-end 页据此判「出航成功/全员阵亡」
@@ -91,6 +92,7 @@ func start_run() -> void:
 	_last_offers.clear()
 	pending_deploy.clear()
 	_downed_this_run.clear()
+	_downed_pending_notice.clear()
 	current_island_index = -1
 	last_run_won = false
 	for def in UnitDataManager.get_all_units():
@@ -185,8 +187,16 @@ func _on_crew_member_downed(crew_id: String) -> void:
 	if _downed_this_run.has(crew_id):
 		return
 	_downed_this_run.append(crew_id)
+	_downed_pending_notice.append(crew_id)
 	for i in range(roster.size() - 1, -1, -1):
 		if roster[i].id == crew_id:
 			roster.remove_at(i)
 	if not _excluded_offers.has(crew_id):
 		_excluded_offers.append(crew_id)
+
+# 阵亡通知卡数据接口（route-recruitment-ui）：本场待通知 crew id 副本。
+func get_pending_downed_notice() -> Array[String]:
+	return _downed_pending_notice.duplicate()
+
+func clear_downed_notice() -> void:
+	_downed_pending_notice.clear()

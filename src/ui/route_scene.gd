@@ -9,15 +9,17 @@ var _selected_ids: Array[String] = []        # 本次部署已选 crew id
 var _deploy_buttons: Dictionary = {}          # crew_id → 选人 toggle Button
 var _deploy_status_label: Label = null        # "已选 X/4"
 var _deploy_confirm_button: Button = null     # 「确认部署」
+var _notice_continue_button: Button = null    # 阵亡通知卡「继续」
+var _active_screen := ""                       # 当前展示界面（notice/recruit/run_end/deploy；测试可观测）
 
 func _ready() -> void:
 	match RunManager.current_phase:
 		"IDLE":
 			_begin_run()
 		"RECRUITING":
-			_show_recruit_offers()
+			_notice_then(_show_recruit_offers)
 		"RUN_END":
-			_show_run_end()
+			_notice_then(_show_run_end)
 		_:
 			_enter_deploy()
 
@@ -42,6 +44,8 @@ func _clear_ui() -> void:
 	_deploy_buttons.clear()
 	_deploy_status_label = null
 	_deploy_confirm_button = null
+	_notice_continue_button = null
+	_active_screen = ""
 
 # 收集 roster 全员 id 提交部署（≤DEPLOY_LIMIT 时自动全员）。
 func _auto_deploy_all() -> void:
@@ -52,6 +56,7 @@ func _auto_deploy_all() -> void:
 
 # 手动选人界面（白盒，只用按钮，不显数值）。roster 按招募顺序（自然序）。
 func _show_deploy_selection() -> void:
+	_active_screen = "deploy"
 	var box := VBoxContainer.new()
 	add_child(box)
 	box.set_anchors_preset(Control.PRESET_CENTER)   # M-3：先 add_child 再设锚点
@@ -95,12 +100,47 @@ func _on_deploy_confirm() -> void:
 		return
 	RunManager.confirm_deploy(_selected_ids.duplicate())
 
+# 战后门控：本场有阵亡 → 先弹折损通知卡，「继续」后再进 next；否则直接 next。
+func _notice_then(next: Callable) -> void:
+	if RunManager.get_pending_downed_notice().is_empty():
+		next.call()
+	else:
+		_show_downed_notice(next)
+
+# 折损通知卡（白盒）：列出本场阵亡船员「职业·名 在第 N 岛阵亡」+「继续」。
+func _show_downed_notice(next: Callable) -> void:
+	_active_screen = "notice"
+	var box := VBoxContainer.new()
+	add_child(box)
+	box.set_anchors_preset(Control.PRESET_CENTER)
+	var title := Label.new()
+	title.text = "折损通知"
+	box.add_child(title)
+	var island_no := RunManager.current_island_index + 1
+	for crew_id in RunManager.get_pending_downed_notice():
+		var def := UnitDataManager.get_unit(crew_id)
+		if def is CrewDefinition:
+			var crew := def as CrewDefinition
+			var line := Label.new()
+			line.text = "%s · %s 在第 %d 岛阵亡" % [crew.unit_class, crew.display_name, island_no]
+			box.add_child(line)
+	_notice_continue_button = Button.new()
+	_notice_continue_button.text = "继续"
+	_notice_continue_button.pressed.connect(_on_notice_continue.bind(next))
+	box.add_child(_notice_continue_button)
+
+func _on_notice_continue(next: Callable) -> void:
+	RunManager.clear_downed_notice()
+	_clear_ui()
+	next.call()
+
 # 三选一招募卡。候选为空 → 跳过招募直接进入部署。
 func _show_recruit_offers() -> void:
 	var offers := RunManager.get_recruit_offers()
 	if offers.is_empty():
 		_enter_deploy()
 		return
+	_active_screen = "recruit"
 	var box := VBoxContainer.new()
 	box.set_anchors_preset(Control.PRESET_CENTER)
 	add_child(box)
@@ -120,6 +160,7 @@ func _on_recruit_chosen(unit_id: String) -> void:
 
 # run-end：出航成功 / 全员阵亡 + 重新出航。
 func _show_run_end() -> void:
+	_active_screen = "run_end"
 	var box := VBoxContainer.new()
 	box.set_anchors_preset(Control.PRESET_CENTER)
 	add_child(box)

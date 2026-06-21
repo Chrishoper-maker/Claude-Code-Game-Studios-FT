@@ -58,6 +58,25 @@ func test_downed_crew_not_offered_again() -> void:
 	for o in offers:
 		assert_str((o as CrewDefinition).id).is_not_equal(pool_id)
 
+# 阵亡填充"待通知"集合；clear/start_run 清空。
+func test_downed_fills_and_clears_pending_notice() -> void:
+	var id: String = (RunManager.roster[0] as CrewDefinition).id
+	RunManager._on_crew_member_downed(id)
+	assert_bool(RunManager.get_pending_downed_notice().has(id)).is_true()
+	RunManager.clear_downed_notice()
+	assert_int(RunManager.get_pending_downed_notice().size()).is_equal(0)
+
+func test_start_run_clears_pending_notice() -> void:
+	RunManager._on_crew_member_downed((RunManager.roster[0] as CrewDefinition).id)
+	RunManager.start_run()
+	assert_int(RunManager.get_pending_downed_notice().size()).is_equal(0)
+
+func test_pending_notice_deduped() -> void:
+	var id: String = (RunManager.roster[0] as CrewDefinition).id
+	RunManager._on_crew_member_downed(id)
+	RunManager._on_crew_member_downed(id)
+	assert_int(RunManager.get_pending_downed_notice().size()).is_equal(1)
+
 func test_start_run_fills_roster_with_starting_crew() -> void:
 	# Arrange/Act done in before_test
 	# Assert: roster 全为 starting tier，且数量 == 注册表中 starting crew 数
