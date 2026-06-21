@@ -198,3 +198,63 @@ func test_end_player_phase_advances_round() -> void:
 	ctx.ctrl.end_player_phase()
 	assert_int(ctx.tm.get_current_round()).is_equal(2)
 	assert_int(ctx.tm.get_battle_state()).is_equal(TurnManager.BattleState.PLAYER_PHASE)
+
+# ── 动词选靶（aura / heal / displace）──
+# AC-1：aura 无目标立即执行 → 相邻友方获 AURA + 标记动词。
+func test_do_verb_aura_buffs_adjacent_ally_and_marks_verb() -> void:
+	var ctx := _make_controller()
+	var bard := _register(ctx.tm, ctx.gb, _make_def("crew", "musician", 1, 2, 8, "aura"), Vector2i(3, 6))
+	var ally := _register(ctx.tm, ctx.gb, _make_def("crew", "swordsman", 3, 3, 10, "slash"), Vector2i(3, 5))
+	_begin_select(ctx, bard)
+	ctx.ctrl.do_verb()
+	assert_bool(ctx.tm.get_unit(bard).has_used_verb).is_true()
+	assert_bool(ctx.br.get_unit_status(ally, BattleResolution.STATUS_AURA)).is_true()
+	assert_int(ctx.ctrl.get_mode()).is_equal(PlayerTurnController.Mode.IDLE)
+
+# AC-2：heal 进入选靶，点相邻受损友方 → 治疗 + 标记动词。
+func test_do_verb_heal_targets_and_heals_adjacent_ally() -> void:
+	var ctx := _make_controller()
+	var medic := _register(ctx.tm, ctx.gb, _make_def("crew", "medic", 1, 2, 8, "heal"), Vector2i(3, 6))
+	var ally := _register(ctx.tm, ctx.gb, _make_def("crew", "swordsman", 3, 3, 10, "slash"), Vector2i(3, 5))
+	ctx.tm.get_unit(ally).current_hp = 4
+	_begin_select(ctx, medic)
+	ctx.ctrl.do_verb()
+	assert_int(ctx.ctrl.get_mode()).is_equal(PlayerTurnController.Mode.VERB)
+	assert_array(ctx.ctrl.get_valid_targets()).contains([Vector2i(3, 5)])
+	ctx.ctrl.handle_cell_click(Vector2i(3, 5))
+	assert_int(ctx.tm.get_unit(ally).current_hp).is_equal(7)   # 4 + HEAL_AMOUNT(3)
+	assert_bool(ctx.tm.get_unit(medic).has_used_verb).is_true()
+	assert_int(ctx.ctrl.get_mode()).is_equal(PlayerTurnController.Mode.IDLE)
+
+# AC-3：displace 进入选靶，点相邻敌方 → 推离 + 标记动词。
+func test_do_verb_displace_pushes_adjacent_enemy() -> void:
+	var ctx := _make_controller()
+	var nav := _register(ctx.tm, ctx.gb, _make_def("crew", "navigator", 1, 2, 8, "displace"), Vector2i(3, 6))
+	var enemy := _register(ctx.tm, ctx.gb, _make_def("enemy", "swordsman", 2, 2, 6, ""), Vector2i(3, 5))
+	_begin_select(ctx, nav)
+	ctx.ctrl.do_verb()
+	assert_int(ctx.ctrl.get_mode()).is_equal(PlayerTurnController.Mode.VERB)
+	assert_array(ctx.ctrl.get_valid_targets()).contains([Vector2i(3, 5)])
+	ctx.ctrl.handle_cell_click(Vector2i(3, 5))
+	assert_vector(ctx.tm.get_unit(enemy).grid_position).is_equal(Vector2i(3, 3))   # 推离 nav 方向 2 格
+	assert_bool(ctx.tm.get_unit(nav).has_used_verb).is_true()
+
+# AC-4：heal 无相邻友方 → 目标空、verb 不可用。
+func test_heal_no_adjacent_ally_no_targets() -> void:
+	var ctx := _make_controller()
+	var medic := _register(ctx.tm, ctx.gb, _make_def("crew", "medic", 1, 2, 8, "heal"), Vector2i(3, 6))
+	_register(ctx.tm, ctx.gb, _make_def("enemy", "swordsman", 2, 2, 6, ""), Vector2i(0, 0))
+	_begin_select(ctx, medic)
+	ctx.ctrl.do_verb()
+	assert_array(ctx.ctrl.get_valid_targets()).is_empty()
+	assert_bool(ctx.ctrl.get_available_actions()["verb"]).is_false()
+
+# AC-5：cannon 仍未支持（保留警告，不进选靶、不耗动词）。
+func test_do_verb_cannon_unsupported_no_effect() -> void:
+	var ctx := _make_controller()
+	var gunner := _register(ctx.tm, ctx.gb, _make_def("crew", "gunner", 3, 2, 7, "cannon"), Vector2i(3, 6))
+	_register(ctx.tm, ctx.gb, _make_def("enemy", "swordsman", 2, 2, 6, ""), Vector2i(3, 3))
+	_begin_select(ctx, gunner)
+	ctx.ctrl.do_verb()
+	assert_int(ctx.ctrl.get_mode()).is_equal(PlayerTurnController.Mode.IDLE)
+	assert_bool(ctx.tm.get_unit(gunner).has_used_verb).is_false()

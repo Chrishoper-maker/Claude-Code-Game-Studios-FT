@@ -5,7 +5,7 @@
 class_name PlayerTurnController
 extends Node
 
-enum Mode { IDLE, MOVE, ATTACK, BURST_LEAD, BURST_PARTNER }
+enum Mode { IDLE, MOVE, ATTACK, BURST_LEAD, BURST_PARTNER, VERB }
 
 var _turn_manager: TurnManager
 var _grid_board: GridBoard
@@ -19,6 +19,7 @@ var _selected_unit_id: int = -1   # 当前被指挥的己方单位（-1 = 未选
 var _mode: int = Mode.IDLE
 var _valid_targets: Array[Vector2i] = []
 var _burst_lead_id: int = -1
+var _pending_verb: int = -1   # VERB 选靶模式下待派发的 BattleResolution.VerbType
 
 func setup(turn_manager: TurnManager, grid_board: GridBoard, battle_resolution: BattleResolution, bond_gauge_burst: BondGaugeBurst, highlighter: Node = null, hud: Node = null) -> void:
 	_turn_manager = turn_manager
@@ -109,6 +110,8 @@ func handle_cell_click(cell: Vector2i) -> void:
 			_select_burst_lead(cell)
 		Mode.BURST_PARTNER:
 			_do_burst(cell)
+		Mode.VERB:
+			_do_verb_on_cell(cell)
 
 func _compute_targets(mode: int) -> Array[Vector2i]:
 	match mode:
@@ -145,6 +148,25 @@ func _compute_targets(mode: int) -> Array[Vector2i]:
 				if a.is_alive and not a.has_used_verb and GridBoard.chebyshev(lead_pos, a.grid_position) == 1:
 					partners.append(a.grid_position)
 			return partners
+		Mode.VERB:
+			var u: UnitInstance = _turn_manager.get_unit(_selected_unit_id)
+			if u == null or u.has_used_verb:
+				return []
+			var cells: Array[Vector2i] = []
+			match u.definition.class_action_id:
+				"heal":
+					for aid in _turn_manager.get_alive_allies():
+						if aid == _selected_unit_id:
+							continue
+						var a: UnitInstance = _turn_manager.get_unit(aid)
+						if GridBoard.chebyshev(u.grid_position, a.grid_position) == 1:
+							cells.append(a.grid_position)
+				"displace":
+					for eid in _turn_manager.get_alive_enemies():
+						var e: UnitInstance = _turn_manager.get_unit(eid)
+						if GridBoard.chebyshev(u.grid_position, e.grid_position) == 1:
+							cells.append(e.grid_position)
+			return cells
 		_:
 			return []
 
@@ -179,9 +201,37 @@ func do_verb() -> void:
 			_battle_resolution.execute_slash(_selected_unit_id)
 		"guard":
 			_battle_resolution.execute_guard(_selected_unit_id, _selected_unit_id)
-		_:
-			push_warning("PlayerTurnController.do_verb: MVP 未支持动词 %s（cannon/heal/displace 需目标选择，留后续 story）" % u.definition.class_action_id)
+		"aura":
+			_battle_resolution.execute_aura(_selected_unit_id)
+		"heal", "displace":
+			_begin_verb_targeting()   # 需选目标 → 进 VERB 选靶模式（不在此清模式）
 			return
+		_:
+			push_warning("PlayerTurnController.do_verb: MVP 未支持动词 %s（cannon 定向选靶留后续 story）" % u.definition.class_action_id)
+			return
+	_set_mode(Mode.IDLE)
+
+# 进入动词选靶：记待派发 VerbType，算相邻合法目标并高亮。
+func _begin_verb_targeting() -> void:
+	_pending_verb = _verb_type_for(_turn_manager.get_unit(_selected_unit_id).definition.class_action_id)
+	set_mode(Mode.VERB)
+
+func _verb_type_for(class_action_id: String) -> int:
+	match class_action_id:
+		"heal":
+			return BattleResolution.VerbType.HEAL
+		"displace":
+			return BattleResolution.VerbType.MOVE   # MOVE 分发到 execute_displace（方向引擎内推导）
+		_:
+			return -1
+
+# VERB 模式点击合法目标格 → 经统一分发器执行（方向型动词内部推导方向）。
+func _do_verb_on_cell(cell: Vector2i) -> void:
+	var cid := _turn_manager.get_unit(_selected_unit_id).definition.class_action_id
+	var target := _ally_at(cell) if cid == "heal" else _enemy_at(cell)
+	if target == -1:
+		return
+	_battle_resolution.execute_verb(_selected_unit_id, _pending_verb, target)
 	_set_mode(Mode.IDLE)
 
 # HUD[爆发]按钮调用（仅槽满时按钮可点）。
@@ -235,7 +285,12 @@ func get_available_actions() -> Dictionary:
 			if _battle_resolution.is_valid_attack(_selected_unit_id, eid):
 				result["attack"] = true
 				break
-	result["verb"] = not u.has_used_verb and u.definition.class_action_id in ["slash", "guard"]
+	if not u.has_used_verb:
+		var cid := u.definition.class_action_id
+		if cid in ["slash", "guard", "aura"]:
+			result["verb"] = true          # 无目标动词恒可用
+		elif cid in ["heal", "displace"]:
+			result["verb"] = not _compute_targets(Mode.VERB).is_empty()   # 需有相邻合法目标
 	return result
 
 func _color_for(mode: int) -> Color:
