@@ -11,6 +11,7 @@ extends Node
 const STARTING_CREW := 2
 const RECRUIT_OFFER_COUNT := 3
 const ISLAND_COUNT_MAX := 5
+const DEPLOY_LIMIT := 4
 
 # ── 状态机（ADR-0004）──
 enum RunPhase {
