@@ -11,12 +11,17 @@ func before_test() -> void:
 	RunManager._goto_battle = func() -> void: pass
 	RunManager._goto_route  = func() -> void: pass
 	MetaProgress.unlocked_crew_ids.clear()
+	MetaProgress._save_path = "user://test_run_loop_meta.json"
 	RunManager.start_run()
 	RunManager._rng.seed = 20260621   # 招募抽样确定性
 
 func after_test() -> void:
 	RunManager._goto_battle = RunManager._default_goto_battle
 	RunManager._goto_route  = RunManager._default_goto_route
+	MetaProgress.unlocked_crew_ids.clear()
+	MetaProgress._save_path = "user://meta.json"
+	if FileAccess.file_exists("user://test_run_loop_meta.json"):
+		DirAccess.remove_absolute("user://test_run_loop_meta.json")
 
 func _roster_ids() -> Array:
 	var ids: Array = []

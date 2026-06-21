@@ -1,4 +1,4 @@
-# MetaProgress 解锁逻辑 + 序列化（无文件 I/O 的纯核心）。
+# MetaProgress 解锁逻辑 + 序列化（写入注入的临时 _save_path，after_test 清理）。
 extends GdUnitTestSuite
 
 const TMP := "user://test_meta_unit.json"
