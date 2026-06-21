@@ -5,6 +5,7 @@ extends GdUnitTestSuite
 var _uid: int
 
 func before_test() -> void:
+	RunManager._autosave_enabled = false
 	if EventBus.battle_won.is_connected(RunManager._on_battle_won):
 		EventBus.battle_won.disconnect(RunManager._on_battle_won)
 	RunManager._goto_battle = func() -> void: pass   # 防止 confirm_deploy 真的切场景

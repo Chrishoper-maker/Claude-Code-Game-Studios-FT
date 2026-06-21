@@ -84,6 +84,13 @@ func _on_run_phase_entered(phase: RunPhase) -> void:
 			EventBus.run_phase_changed.emit("RUN_END")
 		RunPhase.RUN_IDLE:
 			pass  # IDLE 无需广播（无活跃 run 阶段）
+	# 航点自动存档（run-save #13）：航点存、终局删；BATTLE/IDLE 不动。
+	if _autosave_enabled:
+		match phase:
+			RunPhase.RUN_DEPLOYING, RunPhase.RUN_RECRUITING:
+				save_run()
+			RunPhase.RUN_END:
+				delete_save()
 
 # ── Run 生命周期（route-recruitment-system）──
 

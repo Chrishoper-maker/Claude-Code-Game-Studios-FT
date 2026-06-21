@@ -2,6 +2,7 @@
 extends GdUnitTestSuite
 
 func before_test() -> void:
+	RunManager._autosave_enabled = false
 	RunManager._goto_battle = func() -> void: pass
 	RunManager._goto_route  = func() -> void: pass
 	RunManager.start_run()

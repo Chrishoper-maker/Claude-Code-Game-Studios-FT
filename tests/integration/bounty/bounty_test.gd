@@ -4,6 +4,7 @@ extends GdUnitTestSuite
 const TMP := "user://test_bounty.json"
 
 func before_test() -> void:
+	RunManager._autosave_enabled = false
 	RunManager._goto_battle = func() -> void: pass
 	RunManager._goto_route  = func() -> void: pass
 	MetaProgress.unlocked_crew_ids.clear()

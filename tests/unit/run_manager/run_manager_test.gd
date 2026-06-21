@@ -5,6 +5,7 @@
 extends GdUnitTestSuite
 
 func before_test() -> void:
+	RunManager._autosave_enabled = false
 	RunManager._goto_battle = func() -> void: pass   # 防止单测真的切场景
 	RunManager._goto_route = func() -> void: pass
 	MetaProgress.unlocked_crew_ids.clear()
