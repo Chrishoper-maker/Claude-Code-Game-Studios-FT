@@ -20,6 +20,7 @@ config/icon="res://icon.svg"
 
 EventBus="*res://src/autoloads/event_bus.gd"
 UnitDataManager="*res://src/autoloads/unit_data_manager.gd"
+MetaProgress="*res://src/autoloads/meta_progress.gd"
 MapDataManager="*res://src/autoloads/map_data_manager.gd"
 RunManager="*res://src/autoloads/run_manager.gd"
 SceneManager="*res://src/autoloads/scene_manager.gd"
