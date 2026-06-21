@@ -47,7 +47,7 @@ signal burst_presentation_ended()
 
 # ── Run 信号 ──
 signal run_phase_changed(phase: String)
-signal crew_member_downed(unit_id: int)
+signal crew_member_downed(crew_id: String)
 signal run_completed(won: bool, island_count: int, roster_snapshot: Array)
 signal map_loaded(map_id: String)
 signal map_reset_requested()

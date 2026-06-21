@@ -40,7 +40,7 @@ var current_phase: String:
 # 独立非状态变量（ADR-0002/0004）。约定只读，仅本类内部 confirm_deploy 推进。
 var current_island_index: int = -1
 var roster: Array[CrewDefinition] = []
-var _downed_this_run: Array[int] = []     # 本 run 永久阵亡的运行时 id（R1 公式须排除）
+var _downed_this_run: Array[String] = []  # 本 run 永久阵亡的持久 crew id（roster 移除 + 招募排除）
 
 var pending_deploy: Array[CrewDefinition] = []   # 本场出场名单（confirm_deploy 写，BattleScene 读）
 var last_run_won: bool = false                   # run-end 页据此判「出航成功/全员阵亡」
@@ -180,6 +180,13 @@ func _on_battle_lost() -> void:
 	EventBus.run_completed.emit(false, current_island_index + 1, roster.duplicate())
 	_goto_route.call()
 
-func _on_crew_member_downed(unit_id: int) -> void:
-	if not _downed_this_run.has(unit_id):
-		_downed_this_run.append(unit_id)         # 永久死亡，R1 公式须排除（不跨 run 持久化）
+# 我方永久死亡：移出 roster（本 run 不再部署）+ 记录 + 排除招募（不复活）。crew_id = 持久身份。
+func _on_crew_member_downed(crew_id: String) -> void:
+	if _downed_this_run.has(crew_id):
+		return
+	_downed_this_run.append(crew_id)
+	for i in range(roster.size() - 1, -1, -1):
+		if roster[i].id == crew_id:
+			roster.remove_at(i)
+	if not _excluded_offers.has(crew_id):
+		_excluded_offers.append(crew_id)

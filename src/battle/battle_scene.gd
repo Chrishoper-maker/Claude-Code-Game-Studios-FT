@@ -36,6 +36,7 @@ func _ready() -> void:
 	EventBus.battle_started.connect(_battle_map.on_battle_started)
 	EventBus.battle_won.connect(_battle_map.on_battle_won)
 	EventBus.battle_lost.connect(_battle_map.on_battle_lost)
+	EventBus.unit_downed.connect(_relay_crew_downed)   # 我方击倒 → 永久死亡（crew_member_downed）
 	# architecture.md 4d：引导战斗。
 	_battle_map.load_map(RunManager.current_island_index)   # 读 autoload 持久状态 → 部署敌方
 	_deploy_run_crew()                                      # 按 run roster 自动部署玩家方
@@ -66,6 +67,12 @@ func _spawn_all_views() -> void:
 		var view := _unit_renderer.spawn_view(inst.definition.unit_class, inst.definition.faction, battle_id, inst.grid_position)
 		_unit_renderer.set_unit_max_hp(battle_id, inst.definition.max_hp)
 		view.set_hp(inst.current_hp, inst.definition.max_hp)
+
+# 桥：unit_downed(battle_id) → 若我方 → crew_member_downed(持久 id)（RunManager 永久移除 roster）。
+func _relay_crew_downed(battle_id: int) -> void:
+	var inst := _turn_manager.get_unit(battle_id)
+	if inst != null and inst.definition.faction == "crew":
+		EventBus.crew_member_downed.emit(inst.get_unit_id())
 
 # 辅助：根据 battle_id 查询阵营字符串（传给 DamageFloater 的 faction_lookup）。
 func _faction_of(battle_id: int) -> String:

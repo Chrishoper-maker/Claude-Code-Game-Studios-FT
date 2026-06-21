@@ -39,12 +39,24 @@ func test_battle_won_at_final_island_ends_run() -> void:
 	RunManager._on_battle_won()
 	assert_str(RunManager.current_phase).is_equal("RUN_END")
 
-# 阵亡去重：同一 unit_id 多次只记一次（R1 公式排除集）。
+# 永久死亡：同一持久 crew id 多次只记一次，且永久移出 roster + 加入招募排除。
 func test_crew_downed_recorded_once() -> void:
-	RunManager._on_crew_member_downed(7)
-	RunManager._on_crew_member_downed(7)
+	var first_id: String = (RunManager.roster[0] as CrewDefinition).id
+	var before := RunManager.roster.size()
+	RunManager._on_crew_member_downed(first_id)
+	RunManager._on_crew_member_downed(first_id)
 	assert_int(RunManager._downed_this_run.size()).is_equal(1)
-	assert_bool(RunManager._downed_this_run.has(7)).is_true()
+	assert_bool(RunManager._downed_this_run.has(first_id)).is_true()
+	assert_int(RunManager.roster.size()).is_equal(before - 1)
+	assert_bool(RunManager._excluded_offers.has(first_id)).is_true()
+
+# 阵亡者不再被招募（防复活）。
+func test_downed_crew_not_offered_again() -> void:
+	var pool_id := "crew_gunner_01"
+	RunManager._on_crew_member_downed(pool_id)
+	var offers := RunManager.get_recruit_offers()
+	for o in offers:
+		assert_str((o as CrewDefinition).id).is_not_equal(pool_id)
 
 func test_start_run_fills_roster_with_starting_crew() -> void:
 	# Arrange/Act done in before_test
