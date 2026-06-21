@@ -48,6 +48,8 @@ var last_run_won: bool = false                   # run-end 页据此判「出航
 var _excluded_offers: Array[String] = []         # 本 run 落选 unit_id（不再 offer）
 var _last_offers: Array[String] = []             # 本批候选 unit_id（confirm_recruit 据此排除其余）
 var _rng: RandomNumberGenerator = RandomNumberGenerator.new()  # 招募抽样（测试可 seed；断言不变量）
+var _save_path: String = "user://run.json"        # 进行中 run 存档路径（测试可注入）
+var _autosave_enabled: bool = true                 # 航点自动存档开关（Task 2 钩子读取；测试关）
 
 # 导航接缝（DI over singleton）：默认转调 SceneManager，单测覆盖为 no-op 以免真的切场景。
 var _goto_battle: Callable
@@ -206,3 +208,94 @@ func clear_downed_notice() -> void:
 # 本 run 累计阵亡的持久 crew id 副本（run-end 总结/未来存档）。
 func get_downed_this_run() -> Array[String]:
 	return _downed_this_run.duplicate()
+
+# ── 存档（run-save #13）──
+
+# 序列化进行中 run 状态（纯，无 I/O）。crew 存 id，rng 存 str 防精度丢失。
+func to_save_dict() -> Dictionary:
+	var roster_ids: Array[String] = []
+	for c in roster:
+		roster_ids.append(c.id)
+	var pending_ids: Array[String] = []
+	for c in pending_deploy:
+		pending_ids.append(c.id)
+	return {
+		"version": 1,
+		"phase": current_phase,
+		"island_index": current_island_index,
+		"last_run_won": last_run_won,
+		"roster": roster_ids,
+		"pending_deploy": pending_ids,
+		"downed_this_run": _downed_this_run.duplicate(),
+		"downed_pending_notice": _downed_pending_notice.duplicate(),
+		"excluded_offers": _excluded_offers.duplicate(),
+		"last_offers": _last_offers.duplicate(),
+		"rng_state": str(_rng.state),
+	}
+
+# 反序列化恢复（直接赋 _phase，不发信号）。缺失 crew id 防御性跳过。
+func load_from_save_dict(d: Dictionary) -> void:
+	current_island_index = int(d.get("island_index", -1))
+	last_run_won = bool(d.get("last_run_won", false))
+	roster.clear()
+	for rid in (d.get("roster", []) as Array):
+		var def := UnitDataManager.get_unit(str(rid))
+		if def is CrewDefinition:
+			roster.append(def as CrewDefinition)
+	pending_deploy.clear()
+	for pid in (d.get("pending_deploy", []) as Array):
+		var def := UnitDataManager.get_unit(str(pid))
+		if def is CrewDefinition:
+			pending_deploy.append(def as CrewDefinition)
+	_downed_this_run = _to_string_array(d.get("downed_this_run", []))
+	_downed_pending_notice = _to_string_array(d.get("downed_pending_notice", []))
+	_excluded_offers = _to_string_array(d.get("excluded_offers", []))
+	_last_offers = _to_string_array(d.get("last_offers", []))
+	_phase = _phase_from_string(str(d.get("phase", "IDLE")))
+	_rng.state = int(str(d.get("rng_state", "0")))
+
+func _to_string_array(v: Variant) -> Array[String]:
+	var out: Array[String] = []
+	if v is Array:
+		for e in (v as Array):
+			out.append(str(e))
+	return out
+
+func _phase_from_string(s: String) -> RunPhase:
+	match s:
+		"IDLE": return RunPhase.RUN_IDLE
+		"DEPLOYING": return RunPhase.RUN_DEPLOYING
+		"BATTLE": return RunPhase.RUN_ISLAND_BATTLE
+		"RECRUITING": return RunPhase.RUN_RECRUITING
+		"RUN_END": return RunPhase.RUN_END
+		_: return RunPhase.RUN_IDLE
+
+func save_run() -> void:
+	var f := FileAccess.open(_save_path, FileAccess.WRITE)
+	if f == null:
+		push_error("RunManager.save_run: 无法写入 %s" % _save_path)
+		return
+	f.store_string(JSON.stringify(to_save_dict()))
+	f.close()
+
+func load_run() -> void:
+	if not FileAccess.file_exists(_save_path):
+		return
+	var f := FileAccess.open(_save_path, FileAccess.READ)
+	if f == null:
+		push_error("RunManager.load_run: 无法读取 %s" % _save_path)
+		return
+	var text := f.get_as_text()
+	f.close()
+	var parsed: Variant = JSON.parse_string(text)
+	if parsed is Dictionary:
+		load_from_save_dict(parsed as Dictionary)
+	else:
+		push_error("RunManager.load_run: 解析失败，保留当前状态")
+
+func has_save() -> bool:
+	return FileAccess.file_exists(_save_path)
+
+func delete_save() -> void:
+	if FileAccess.file_exists(_save_path):
+		DirAccess.remove_absolute(_save_path)
