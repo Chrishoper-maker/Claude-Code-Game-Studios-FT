@@ -10,6 +10,7 @@ const STARTING_IDS := ["crew_swordsman_01", "crew_bulwark_01"]
 func before_test() -> void:
 	RunManager._goto_battle = func() -> void: pass
 	RunManager._goto_route  = func() -> void: pass
+	MetaProgress.unlocked_crew_ids.clear()
 	RunManager.start_run()
 	RunManager._rng.seed = 20260621   # 招募抽样确定性
 

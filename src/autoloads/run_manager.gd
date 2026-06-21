@@ -113,7 +113,8 @@ func get_recruit_offers() -> Array[CrewDefinition]:
 	for def in UnitDataManager.get_all_units():
 		if def is CrewDefinition:
 			var crew := def as CrewDefinition
-			if crew.recruit_pool_tier == "pool" \
+			if (crew.recruit_pool_tier == "pool" \
+					or (crew.recruit_pool_tier == "unlockable" and MetaProgress.is_unlocked(crew.id))) \
 					and not roster_ids.has(crew.id) \
 					and not _excluded_offers.has(crew.id):
 				pool.append(crew)
@@ -170,6 +171,7 @@ func _on_battle_won() -> void:
 		last_run_won = true
 		_set_run_phase(RunPhase.RUN_END)
 		EventBus.run_completed.emit(true, current_island_index + 1, roster.duplicate())
+		MetaProgress.unlock_next()   # 悬赏成长：通关解锁下一名 unlockable（含存盘）
 		_goto_route.call()
 		return
 	_set_run_phase(RunPhase.RUN_RECRUITING)      # 发 run_phase_changed("RECRUITING")

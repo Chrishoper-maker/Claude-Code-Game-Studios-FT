@@ -7,6 +7,7 @@ extends GdUnitTestSuite
 func before_test() -> void:
 	RunManager._goto_battle = func() -> void: pass   # 防止单测真的切场景
 	RunManager._goto_route = func() -> void: pass
+	MetaProgress.unlocked_crew_ids.clear()
 	RunManager.start_run()        # 复位：DEPLOYING + 填起始编制 + 清 offer/pending
 	RunManager._rng.seed = 20260620
 
