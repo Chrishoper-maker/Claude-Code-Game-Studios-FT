@@ -204,6 +204,14 @@ func _show_run_end() -> void:
 				var line := Label.new()
 				line.text = "  %s · %s" % [crew.unit_class, crew.display_name]
 				box.add_child(line)
+	var unlocked_id := RunManager.get_unlocked_this_run()
+	if unlocked_id != "":
+		var udef := UnitDataManager.get_unit(unlocked_id)
+		if udef is CrewDefinition:
+			var ucrew := udef as CrewDefinition
+			var unlock_line := Label.new()
+			unlock_line.text = "解锁新船员：%s · %s" % [ucrew.unit_class, ucrew.display_name]
+			box.add_child(unlock_line)
 	var restart := Button.new()
 	restart.text = "重新出航"
 	restart.pressed.connect(_on_restart_pressed)
