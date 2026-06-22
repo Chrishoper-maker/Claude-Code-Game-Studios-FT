@@ -54,7 +54,7 @@ func get_deploy_zone_available(occupied: Array = []) -> Array[Vector2i]:
 # 玩家方部署（route-recruitment confirm_deploy 后端 / DeployScreen 提交点）：
 # 将选定 crew 放入部署区指定格。验证：MAP_READY + 数量匹配 + 每格在部署区/不重复/未占用。
 # 全部合法才落地（任一非法返回 false，不部署任何单位）。crew battle_id 入 _deployed_crew_ids（reset 清）。
-func deploy_crew(crew_defs: Array, positions: Array) -> bool:
+func deploy_crew(crew_defs: Array, positions: Array, equipments: Array = []) -> bool:
 	if _map_state != MapState.MAP_READY:
 		return false
 	if crew_defs.is_empty() or crew_defs.size() != positions.size():
@@ -69,7 +69,10 @@ func deploy_crew(crew_defs: Array, positions: Array) -> bool:
 		if not _grid_board.is_empty(pos):
 			return false
 	for i in crew_defs.size():
-		var inst := UnitInstance.from_definition(crew_defs[i])
+		var eq: EquipmentDefinition = null
+		if i < equipments.size():
+			eq = equipments[i]
+		var inst := UnitInstance.from_definition(crew_defs[i], eq)
 		inst.grid_position = positions[i]
 		var battle_id := _turn_manager.register_unit(inst)
 		_grid_board.place_unit(battle_id, positions[i])

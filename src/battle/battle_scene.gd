@@ -55,18 +55,20 @@ func _deploy_run_crew() -> void:
 		return
 	var defs: Array[CrewDefinition] = []
 	var positions: Array[Vector2i] = []
+	var equipments: Array = []
 	for i in n:
 		defs.append(pending[i])
 		positions.append(cells[i])
-	_battle_map.deploy_crew(defs, positions)
+		equipments.append(RunManager.get_equipment_for(pending[i].id))
+	_battle_map.deploy_crew(defs, positions, equipments)
 
 # 为所有已注册单位生成 UnitView（数据→视觉单向，ADR-0007）。
 func _spawn_all_views() -> void:
 	for battle_id in _turn_manager.get_alive_allies() + _turn_manager.get_alive_enemies():
 		var inst := _turn_manager.get_unit(battle_id)
 		var view := _unit_renderer.spawn_view(inst.definition.unit_class, inst.definition.faction, battle_id, inst.grid_position)
-		_unit_renderer.set_unit_max_hp(battle_id, inst.definition.max_hp)
-		view.set_hp(inst.current_hp, inst.definition.max_hp)
+		_unit_renderer.set_unit_max_hp(battle_id, inst.get_max_hp())
+		view.set_hp(inst.current_hp, inst.get_max_hp())
 
 # 桥：unit_downed(battle_id) → 若我方 → crew_member_downed(持久 id)（RunManager 永久移除 roster）。
 func _relay_crew_downed(battle_id: int) -> void:
