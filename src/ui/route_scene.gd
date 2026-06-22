@@ -150,13 +150,28 @@ func _show_recruit_offers() -> void:
 	for o in offers:
 		var crew := o as CrewDefinition
 		var btn := Button.new()
-		btn.text = "%s · %s · %s" % [crew.unit_class, crew.display_name, crew.battle_cry]
+		var eq := RunManager.get_offer_equipment(crew.id)
+		var eq_text := ("" if eq == null else " · " + _equipment_summary(eq))
+		btn.text = "%s · %s · %s%s" % [crew.unit_class, crew.display_name, crew.battle_cry, eq_text]
 		btn.pressed.connect(_on_recruit_chosen.bind(crew.id))
 		box.add_child(btn)
 
 func _on_recruit_chosen(unit_id: String) -> void:
 	RunManager.confirm_recruit(unit_id)
 	_enter_deploy()
+
+# 装备白盒摘要："名 +N攻 +N血 ..."（仅列非零增量）。
+func _equipment_summary(eq: EquipmentDefinition) -> String:
+	var parts: Array[String] = []
+	if eq.hp_bonus != 0:
+		parts.append("%+d血" % eq.hp_bonus)
+	if eq.damage_bonus != 0:
+		parts.append("%+d攻" % eq.damage_bonus)
+	if eq.range_bonus != 0:
+		parts.append("%+d射程" % eq.range_bonus)
+	if eq.move_bonus != 0:
+		parts.append("%+d移动" % eq.move_bonus)
+	return "%s %s" % [eq.display_name, " ".join(parts)]
 
 # run-end：结果 + 运行总结（抵达岛数 / 幸存 / 本航阵亡）+ 重新出航。
 func _show_run_end() -> void:
