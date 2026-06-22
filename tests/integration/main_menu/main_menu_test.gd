@@ -1,11 +1,25 @@
-# 主菜单集成测试（白盒）：渲染 + 解锁进度 + 导航/退出接缝（不真的切场景/退出）。
+# 主菜单集成测试（白盒）：渲染 + 解锁进度 + 导航/退出/继续接缝（不真的切场景/退出）。
 extends GdUnitTestSuite
+
+const TMP_SAVE := "user://test_main_menu_save.json"
 
 func before_test() -> void:
 	MetaProgress.unlocked_crew_ids.clear()
+	RunManager._save_path = TMP_SAVE
+	if FileAccess.file_exists(TMP_SAVE):
+		DirAccess.remove_absolute(TMP_SAVE)
 
 func after_test() -> void:
 	MetaProgress.unlocked_crew_ids.clear()
+	if FileAccess.file_exists(TMP_SAVE):
+		DirAccess.remove_absolute(TMP_SAVE)
+	RunManager._save_path = "user://run.json"
+
+# 写一个最小存档文件，使 RunManager.has_save() 为真。
+func _write_dummy_save() -> void:
+	var f := FileAccess.open(TMP_SAVE, FileAccess.WRITE)
+	f.store_string("{}")
+	f.close()
 
 # AC-1：渲染出航/退出按钮 + 解锁进度（清空时 0/3）。
 func test_renders_buttons_and_unlock_progress() -> void:
@@ -45,3 +59,26 @@ func test_quit_invokes_quit_seam() -> void:
 func test_main_scene_is_main_menu() -> void:
 	var scene: String = str(ProjectSettings.get_setting("application/run/main_scene"))
 	assert_str(scene).is_equal("res://scenes/MainMenu.tscn")
+
+# AC-6：有存档时渲染"继续航程"按钮。
+func test_continue_button_present_when_save_exists() -> void:
+	_write_dummy_save()
+	var mm: MainMenu = auto_free(MainMenu.new())
+	add_child(mm)
+	assert_bool(mm._continue_button != null).is_true()
+
+# AC-7：无存档时不渲染"继续航程"按钮。
+func test_continue_button_absent_when_no_save() -> void:
+	var mm: MainMenu = auto_free(MainMenu.new())
+	add_child(mm)
+	assert_bool(mm._continue_button == null).is_true()
+
+# AC-8：继续航程触发继续接缝。
+func test_continue_invokes_nav_seam() -> void:
+	_write_dummy_save()
+	var mm: MainMenu = auto_free(MainMenu.new())
+	add_child(mm)
+	var called := [0]
+	mm._nav_continue = func() -> void: called[0] += 1
+	mm._on_continue()
+	assert_int(called[0]).is_equal(1)

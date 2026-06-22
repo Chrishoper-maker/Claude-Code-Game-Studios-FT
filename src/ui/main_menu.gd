@@ -4,16 +4,22 @@ class_name MainMenu
 extends Control
 
 var _set_sail_button: Button = null
+var _continue_button: Button = null            # 仅在存在进行中存档时创建
 var _quit_button: Button = null
 var _unlock_label: Label = null
 
 var _nav_set_sail: Callable
+var _nav_continue: Callable
 var _nav_quit: Callable
 func _default_set_sail() -> void: SceneManager.goto_route()
+func _default_continue() -> void:
+	RunManager.load_run()        # 还原进行中 run（停在 DEPLOYING/RECRUITING 航点）
+	SceneManager.goto_route()    # RouteScene._ready 按 current_phase 渲染对应界面
 func _default_quit() -> void: get_tree().quit()
 
 func _ready() -> void:
 	_nav_set_sail = _default_set_sail
+	_nav_continue = _default_continue
 	_nav_quit = _default_quit
 	var box := VBoxContainer.new()
 	add_child(box)
@@ -24,6 +30,12 @@ func _ready() -> void:
 	_unlock_label = Label.new()
 	_unlock_label.text = "悬赏解锁 %d / %d" % [MetaProgress.unlocked_crew_ids.size(), MetaProgress.get_unlock_order().size()]
 	box.add_child(_unlock_label)
+	# 有进行中存档时，"继续航程"置于"出航"之上。
+	if RunManager.has_save():
+		_continue_button = Button.new()
+		_continue_button.text = "继续航程"
+		_continue_button.pressed.connect(_on_continue)
+		box.add_child(_continue_button)
 	_set_sail_button = Button.new()
 	_set_sail_button.text = "出航"
 	_set_sail_button.pressed.connect(_on_set_sail)
@@ -33,9 +45,13 @@ func _ready() -> void:
 	_quit_button.pressed.connect(_on_quit)
 	box.add_child(_quit_button)
 
-# 出航 → RouteScene（IDLE 自动起航）。经接缝避免测试真的切场景。
+# 出航 → RouteScene（IDLE 自动起航；start_run 自动存档会覆盖旧存档）。经接缝避免测试真的切场景。
 func _on_set_sail() -> void:
 	_nav_set_sail.call()
+
+# 继续航程 → 还原存档并回到 RouteScene。经接缝避免测试真的读盘/切场景。
+func _on_continue() -> void:
+	_nav_continue.call()
 
 # 退出 → 关闭游戏。经接缝避免测试退出运行器。
 func _on_quit() -> void:
