@@ -111,7 +111,7 @@ func refresh() -> void:
 		var u: UnitInstance = _turn_manager.get_unit(_controller.get_current_unit_id())
 		_btn_verb.text = _SKILL_NAME.get(u.definition.class_action_id, "技能")
 		_info_label.text = "%s  HP %d/%d  [移%s 攻%s %s%s]" % [
-			u.definition.display_name, u.current_hp, u.definition.max_hp,
+			u.definition.display_name, u.current_hp, u.get_max_hp(),
 			"✓" if u.has_moved else "·", "✓" if u.has_acted else "·",
 			_SKILL_NAME.get(u.definition.class_action_id, "技"), "✓" if u.has_used_verb else "·"]
 	elif _controller.is_phase_active():

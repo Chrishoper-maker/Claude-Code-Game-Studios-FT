@@ -119,7 +119,7 @@ func _compute_targets(mode: int) -> Array[Vector2i]:
 			var u: UnitInstance = _turn_manager.get_unit(_selected_unit_id)
 			if u == null or u.has_moved:
 				return []
-			return _grid_board.get_reachable_cells(u.grid_position, u.definition.move_range)
+			return _grid_board.get_reachable_cells(u.grid_position, u.get_move_range())
 		Mode.ATTACK:
 			var u: UnitInstance = _turn_manager.get_unit(_selected_unit_id)
 			if u == null or u.has_acted:
@@ -168,7 +168,7 @@ func _compute_targets(mode: int) -> Array[Vector2i]:
 							cells.append(e.grid_position)
 				"cannon":
 					# 基本方向直线（同行/同列）且曼哈顿在 [最小射程, attack_range]（穿透可达）的敌方。
-					var rng := u.definition.attack_range
+					var rng := u.get_attack_range()
 					for eid in _turn_manager.get_alive_enemies():
 						var e: UnitInstance = _turn_manager.get_unit(eid)
 						var d := e.grid_position - u.grid_position
@@ -290,7 +290,7 @@ func get_available_actions() -> Dictionary:
 	var u: UnitInstance = _turn_manager.get_unit(_selected_unit_id)
 	if u == null:
 		return result
-	result["move"] = not u.has_moved and not _grid_board.get_reachable_cells(u.grid_position, u.definition.move_range).is_empty()
+	result["move"] = not u.has_moved and not _grid_board.get_reachable_cells(u.grid_position, u.get_move_range()).is_empty()
 	if not u.has_acted:
 		for eid in _turn_manager.get_alive_enemies():
 			if _battle_resolution.is_valid_attack(_selected_unit_id, eid):

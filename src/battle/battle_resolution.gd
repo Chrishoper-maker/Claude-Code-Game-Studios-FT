@@ -67,7 +67,7 @@ func is_valid_attack(attacker_id: int, target_id: int) -> bool:
 		return false
 	if a.definition.faction == t.definition.faction:
 		return false
-	if not _grid_board.in_attack_range(a.grid_position, t.grid_position, a.definition.attack_range):
+	if not _grid_board.in_attack_range(a.grid_position, t.grid_position, a.get_attack_range()):
 		return false
 	if a.definition.unit_class == "gunner" and GridBoard.manhattan(a.grid_position, t.grid_position) < GUNNER_MIN_RANGE:
 		return false
@@ -96,7 +96,7 @@ func _compute_attack_damage(attacker_id: int, a: UnitInstance) -> int:
 	if get_unit_status(attacker_id, STATUS_AURA):
 		aura = AURA_VALUE
 		_consume_status(attacker_id, STATUS_AURA)
-	return a.definition.base_damage + modifier_sum + aura
+	return a.get_base_damage() + modifier_sum + aura
 
 # GUARDED 减伤（floor）+ 消耗（不区分来源阵营）。
 func _apply_guard(target_id: int, dmg: int) -> int:
@@ -143,7 +143,7 @@ func execute_slash(attacker_id: int) -> void:
 			targets.append(nid)
 	var pre_guard := 0
 	if not targets.is_empty():
-		pre_guard = a.definition.base_damage + modifier_sum + aura
+		pre_guard = a.get_base_damage() + modifier_sum + aura
 		for tid in targets:
 			var t := _turn_manager.get_unit(tid)
 			var fd := _apply_guard(tid, pre_guard)
@@ -167,7 +167,7 @@ func execute_burst_slash(attacker_id: int, multiplier: int, consume_aura: bool =
 	var a := _turn_manager.get_unit(attacker_id)
 	if a == null or not a.is_alive:
 		return
-	var dmg := a.definition.base_damage * multiplier
+	var dmg := a.get_base_damage() * multiplier
 	if consume_aura and get_unit_status(attacker_id, STATUS_AURA):
 		dmg += AURA_VALUE
 		_consume_status(attacker_id, STATUS_AURA)
@@ -223,9 +223,9 @@ func execute_burst_cannon_dir(attacker_id: int, direction: Vector2i, multiplier:
 	var a := _turn_manager.get_unit(attacker_id)
 	if a == null or not a.is_alive:
 		return
-	var dmg := a.definition.base_damage * multiplier
+	var dmg := a.get_base_damage() * multiplier
 	var cell := a.grid_position
-	for _i in a.definition.attack_range:
+	for _i in a.get_attack_range():
 		cell += direction
 		if not _grid_board.in_bounds(cell):
 			break
@@ -245,7 +245,7 @@ func execute_burst_heal(target_id: int, amount: int) -> void:
 	var t := _turn_manager.get_unit(target_id)
 	if t == null or not t.is_alive:
 		return
-	var new_hp := mini(t.current_hp + amount, t.definition.max_hp)
+	var new_hp := mini(t.current_hp + amount, t.get_max_hp())
 	var healed := new_hp - t.current_hp
 	t.current_hp = new_hp
 	EventBus.heal_executed.emit(target_id, healed)
@@ -255,7 +255,7 @@ func execute_cannon(attacker_id: int, direction: Vector2i) -> void:
 	var a := _turn_manager.get_unit(attacker_id)
 	var hits: Array[int] = []
 	var cell := a.grid_position
-	for _i in a.definition.attack_range:
+	for _i in a.get_attack_range():
 		cell += direction
 		if not _grid_board.in_bounds(cell):
 			break
@@ -264,7 +264,7 @@ func execute_cannon(attacker_id: int, direction: Vector2i) -> void:
 			var u := _turn_manager.get_unit(uid)
 			if u != null and u.is_alive:
 				hits.append(uid)
-	var base_fire := a.definition.base_damage
+	var base_fire := a.get_base_damage()
 	for tid in hits:
 		var t := _turn_manager.get_unit(tid)
 		var fd := _apply_guard(tid, base_fire)
@@ -285,7 +285,7 @@ func execute_guard(caster_id: int, target_id: int) -> void:
 # Rule 6 愈：+HEAL_AMOUNT，钳制 max_hp。
 func execute_heal(caster_id: int, target_id: int) -> void:
 	var t := _turn_manager.get_unit(target_id)
-	var new_hp := mini(t.current_hp + HEAL_AMOUNT, t.definition.max_hp)
+	var new_hp := mini(t.current_hp + HEAL_AMOUNT, t.get_max_hp())
 	var amount := new_hp - t.current_hp
 	t.current_hp = new_hp
 	EventBus.heal_executed.emit(target_id, amount)

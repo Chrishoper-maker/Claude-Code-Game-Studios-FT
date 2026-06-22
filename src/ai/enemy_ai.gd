@@ -164,7 +164,7 @@ func _engage(self_id: int, target_id: int) -> IntentRecord:
 	var t := _turn_manager.get_unit(target_id)
 	if _battle_resolution.is_valid_attack(self_id, target_id):
 		return _attack(self_id, target_id)
-	var staging := _grid_board.get_attack_staging_cells(u.grid_position, u.definition.move_range, t.grid_position, u.definition.attack_range)
+	var staging := _grid_board.get_attack_staging_cells(u.grid_position, u.get_move_range(), t.grid_position, u.get_attack_range())
 	if not staging.is_empty():
 		return _move_attack(self_id, target_id, staging[0])
 	var move_to := _greedy_approach(u, t.grid_position)
@@ -177,7 +177,7 @@ func _greedy_approach(u: UnitInstance, goal: Vector2i) -> Vector2i:
 	var cur_d := GridBoard.manhattan(u.grid_position, goal)
 	var chosen := u.grid_position
 	var chosen_key: Array = []
-	for cell in _grid_board.get_reachable_cells(u.grid_position, u.definition.move_range):
+	for cell in _grid_board.get_reachable_cells(u.grid_position, u.get_move_range()):
 		var d := GridBoard.manhattan(cell, goal)
 		if d >= cur_d:
 			continue
@@ -192,7 +192,7 @@ func _retreat_from(u: UnitInstance, goal: Vector2i) -> Vector2i:
 	var best := u.grid_position
 	var best_d := GridBoard.manhattan(best, goal)
 	var best_key := best.x * 8 + best.y
-	for cell in _grid_board.get_reachable_cells(u.grid_position, u.definition.move_range):
+	for cell in _grid_board.get_reachable_cells(u.grid_position, u.get_move_range()):
 		var d := GridBoard.manhattan(cell, goal)
 		var key := cell.x * 8 + cell.y
 		if d > best_d or (d == best_d and key < best_key):
