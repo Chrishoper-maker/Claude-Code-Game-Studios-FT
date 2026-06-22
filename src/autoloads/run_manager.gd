@@ -47,6 +47,8 @@ var pending_deploy: Array[CrewDefinition] = []   # 本场出场名单（confirm_
 var last_run_won: bool = false                   # run-end 页据此判「出航成功/全员阵亡」
 var _excluded_offers: Array[String] = []         # 本 run 落选 unit_id（不再 offer）
 var _last_offers: Array[String] = []             # 本批候选 unit_id（confirm_recruit 据此排除其余）
+var _roster_equipment: Dictionary = {}   # crew_id → equipment_id（已招船员持有的装备）
+var _offer_equipment: Dictionary = {}    # crew_id → equipment_id（本批候选滚到的装备）
 var _rng: RandomNumberGenerator = RandomNumberGenerator.new()  # 招募抽样（测试可 seed；断言不变量）
 var _save_path: String = "user://run.json"        # 进行中 run 存档路径（测试可注入）
 var _autosave_enabled: bool = true                 # 航点自动存档开关（Task 2 钩子读取；测试关）
@@ -99,6 +101,8 @@ func start_run() -> void:
 	roster.clear()
 	_excluded_offers.clear()
 	_last_offers.clear()
+	_roster_equipment.clear()
+	_offer_equipment.clear()
 	pending_deploy.clear()
 	_downed_this_run.clear()
 	_downed_pending_notice.clear()
@@ -146,6 +150,13 @@ func get_recruit_offers() -> Array[CrewDefinition]:
 	_last_offers.clear()
 	for o in offers:
 		_last_offers.append(o.id)
+	# 为每名候选随机滚一件装备（有放回；池空则不滚）。_rng 顺序确定 → 存档可复现。
+	_offer_equipment.clear()
+	var equip_pool := EquipmentDataManager.get_all_equipment()
+	if not equip_pool.is_empty():
+		for crew in offers:
+			var pick := equip_pool[_rng.randi_range(0, equip_pool.size() - 1)]
+			_offer_equipment[crew.id] = pick.id
 	return offers
 
 # 选中候选加入 roster；本批其余候选进 _excluded_offers（本 run 不再 offer）；→DEPLOYING。
@@ -153,12 +164,16 @@ func confirm_recruit(unit_id: String) -> void:
 	var def := UnitDataManager.get_unit(unit_id)
 	if def is CrewDefinition:
 		roster.append(def as CrewDefinition)
+		var picked_eid := str(_offer_equipment.get(unit_id, ""))
+		if picked_eid != "":
+			_roster_equipment[unit_id] = picked_eid
 	else:
 		push_error("RunManager.confirm_recruit: unit_id 非 CrewDefinition 或不存在 — %s" % unit_id)
 	for offered_id in _last_offers:
 		if offered_id != unit_id and not _excluded_offers.has(offered_id):
 			_excluded_offers.append(offered_id)
 	_last_offers.clear()
+	_offer_equipment.clear()
 	_set_run_phase(RunPhase.RUN_DEPLOYING)
 
 # 部署确认 → 进入战斗（ADR-0002 场景切换序列）。pending_deploy = roster 中被选 id 的 defs。
@@ -204,6 +219,7 @@ func _on_crew_member_downed(crew_id: String) -> void:
 			roster.remove_at(i)
 	if not _excluded_offers.has(crew_id):
 		_excluded_offers.append(crew_id)
+	_roster_equipment.erase(crew_id)
 
 # 阵亡通知卡数据接口（route-recruitment-ui）：本场待通知 crew id 副本。
 func get_pending_downed_notice() -> Array[String]:
@@ -215,6 +231,20 @@ func clear_downed_notice() -> void:
 # 本 run 累计阵亡的持久 crew id 副本（run-end 总结/未来存档）。
 func get_downed_this_run() -> Array[String]:
 	return _downed_this_run.duplicate()
+
+# 本批候选 crew_id 滚到的装备（招募卡 UI 用）；无则 null。
+func get_offer_equipment(crew_id: String) -> EquipmentDefinition:
+	var eid := str(_offer_equipment.get(crew_id, ""))
+	if eid == "":
+		return null
+	return EquipmentDataManager.get_equipment(eid)
+
+# 已招船员 crew_id 持有的装备（部署/战斗用）；无则 null。
+func get_equipment_for(crew_id: String) -> EquipmentDefinition:
+	var eid := str(_roster_equipment.get(crew_id, ""))
+	if eid == "":
+		return null
+	return EquipmentDataManager.get_equipment(eid)
 
 # ── 存档（run-save #13）──
 
