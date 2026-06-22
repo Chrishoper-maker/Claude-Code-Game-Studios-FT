@@ -45,6 +45,7 @@ var _downed_pending_notice: Array[String] = []  # 本场待展示阵亡通知的
 
 var pending_deploy: Array[CrewDefinition] = []   # 本场出场名单（confirm_deploy 写，BattleScene 读）
 var last_run_won: bool = false                   # run-end 页据此判「出航成功/全员阵亡」
+var _unlocked_this_run: String = ""               # 本航新解锁的悬赏船员持久 id（run-end 展示；空=无）
 var _excluded_offers: Array[String] = []         # 本 run 落选 unit_id（不再 offer）
 var _last_offers: Array[String] = []             # 本批候选 unit_id（confirm_recruit 据此排除其余）
 var _roster_equipment: Dictionary = {}   # crew_id → equipment_id（已招船员持有的装备）
@@ -108,6 +109,7 @@ func start_run() -> void:
 	_downed_pending_notice.clear()
 	current_island_index = -1
 	last_run_won = false
+	_unlocked_this_run = ""
 	for def in UnitDataManager.get_all_units():
 		if def is CrewDefinition and (def as CrewDefinition).recruit_pool_tier == "starting":
 			roster.append(def as CrewDefinition)
@@ -195,7 +197,7 @@ func _on_battle_won() -> void:
 		last_run_won = true
 		_set_run_phase(RunPhase.RUN_END)
 		EventBus.run_completed.emit(true, current_island_index + 1, roster.duplicate())
-		MetaProgress.unlock_next()   # 悬赏成长：通关解锁下一名 unlockable（含存盘）
+		_unlocked_this_run = MetaProgress.unlock_next()   # 悬赏成长：通关解锁下一名 unlockable（含存盘）；记录供 run-end 展示
 		_goto_route.call()
 		return
 	_set_run_phase(RunPhase.RUN_RECRUITING)      # 发 run_phase_changed("RECRUITING")
@@ -231,6 +233,10 @@ func clear_downed_notice() -> void:
 # 本 run 累计阵亡的持久 crew id 副本（run-end 总结/未来存档）。
 func get_downed_this_run() -> Array[String]:
 	return _downed_this_run.duplicate()
+
+# 本航新解锁的悬赏船员持久 id（run-end 展示用）；无则 ""。
+func get_unlocked_this_run() -> String:
+	return _unlocked_this_run
 
 # 本批候选 crew_id 滚到的装备（招募卡 UI 用）；无则 null。
 func get_offer_equipment(crew_id: String) -> EquipmentDefinition:
