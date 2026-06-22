@@ -268,6 +268,7 @@ func to_save_dict() -> Dictionary:
 		"excluded_offers": _excluded_offers.duplicate(),
 		"last_offers": _last_offers.duplicate(),
 		"rng_state": str(_rng.state),
+		"roster_equipment": _roster_equipment.duplicate(),
 	}
 
 # 反序列化恢复（直接赋 _phase，不发信号）。缺失 crew id 防御性跳过。
@@ -290,6 +291,18 @@ func load_from_save_dict(d: Dictionary) -> void:
 	_last_offers = _to_string_array(d.get("last_offers", []))
 	_phase = _phase_from_string(str(d.get("phase", "IDLE")))
 	_rng.state = int(str(d.get("rng_state", "0")))
+	# 装备账本恢复：仅保留 crew 仍在 roster、且 equipment 有定义的条目（缺失优雅跳过）。
+	_roster_equipment.clear()
+	var roster_id_set: Dictionary = {}
+	for c in roster:
+		roster_id_set[c.id] = true
+	var re: Variant = d.get("roster_equipment", {})
+	if re is Dictionary:
+		for k in (re as Dictionary):
+			var cid := str(k)
+			var eid := str((re as Dictionary)[k])
+			if roster_id_set.has(cid) and EquipmentDataManager.get_equipment(eid) != null:
+				_roster_equipment[cid] = eid
 
 func _to_string_array(v: Variant) -> Array[String]:
 	var out: Array[String] = []
