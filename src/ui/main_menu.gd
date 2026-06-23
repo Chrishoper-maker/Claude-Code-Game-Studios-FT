@@ -59,7 +59,8 @@ func _ready() -> void:
 	_build_heroes()
 	_build_particles()
 	_build_vignette()
-	_layout_heroes()
+	_relayout()
+	get_viewport().size_changed.connect(_relayout)
 	_panel_box = VBoxContainer.new()
 	var box := _panel_box
 	add_child(box)
@@ -266,15 +267,27 @@ func _build_vignette() -> void:
 	_vignette.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_vignette)
 
-# 按视口尺寸摆放英雄（中央居中略上，左右分居两侧）。Task6 做窄屏收拢。
-func _layout_heroes() -> void:
+# 窄/竖屏：宽高比 < 1.2 视为需收拢布局。
+func _is_portrait(size: Vector2) -> bool:
+	return size.x / maxf(size.y, 1.0) < 1.2
+
+# 按当前视口重新摆放英雄与武器光（窄屏向中心收拢并缩小）。
+func _relayout() -> void:
 	var vp := get_viewport_rect().size
+	var narrow := _is_portrait(vp)
+	var spread := 0.18 if not narrow else 0.30   # 窄屏左右更靠中
+	var hero_scale := 1.0 if not narrow else 0.7
 	if _hero_center != null:
-		_hero_center.position = Vector2(vp.x * 0.5 - 260, vp.y * 0.30)
+		_hero_center.scale = Vector2(hero_scale, hero_scale)
+		_hero_center.position = Vector2(vp.x * 0.5 - 260 * hero_scale, vp.y * 0.30)
 	if _hero_left != null:
-		_hero_left.position = Vector2(vp.x * 0.18 - 180, vp.y * 0.36)
+		_hero_left.scale = Vector2(hero_scale, hero_scale)
+		_hero_left.position = Vector2(vp.x * spread - 180 * hero_scale, vp.y * 0.36)
 	if _hero_right != null:
-		_hero_right.position = Vector2(vp.x * 0.82 - 180, vp.y * 0.34)
+		_hero_right.scale = Vector2(hero_scale, hero_scale)
+		_hero_right.position = Vector2(vp.x * (1.0 - spread) - 180 * hero_scale, vp.y * 0.34)
+	if _weapon_glow != null and _hero_center != null:
+		_weapon_glow.position = _hero_center.position + Vector2(120, 380) * hero_scale
 
 # 背景缓慢视差漂移（+ 轻微鼠标视差）。
 func _process(delta: float) -> void:

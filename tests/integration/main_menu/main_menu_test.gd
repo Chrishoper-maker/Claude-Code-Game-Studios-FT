@@ -168,3 +168,10 @@ func test_visual_layers_present_with_placeholders() -> void:
 	assert_bool(mm._hero_left != null).is_true()
 	assert_bool(mm._hero_right != null).is_true()
 	assert_bool(mm._vignette != null).is_true()
+
+# AC-6：竖/窄屏判定（宽高比 < 1.2 视为窄）。
+func test_is_portrait_detection() -> void:
+	var mm: MainMenu = auto_free(MainMenu.new())
+	add_child(mm)
+	assert_bool(mm._is_portrait(Vector2(1080, 1920))).is_true()
+	assert_bool(mm._is_portrait(Vector2(1920, 1080))).is_false()
