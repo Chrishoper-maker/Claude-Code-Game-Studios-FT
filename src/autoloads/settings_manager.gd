@@ -26,8 +26,10 @@ func apply_all() -> void:
 	_apply_window_mode()
 
 func _apply_volume() -> void:
-	AudioServer.set_bus_volume_db(0, linear_to_db(master_volume))
-	AudioServer.set_bus_mute(0, master_volume <= 0.0)   # 0 音量 → 静音，规避 -inf dB
+	var muted := master_volume <= 0.0
+	AudioServer.set_bus_mute(0, muted)                  # 0 音量 → 静音，规避 -inf dB
+	if not muted:
+		AudioServer.set_bus_volume_db(0, linear_to_db(master_volume))
 
 func _apply_window_mode() -> void:
 	var mode := DisplayServer.WINDOW_MODE_FULLSCREEN if fullscreen else DisplayServer.WINDOW_MODE_WINDOWED
