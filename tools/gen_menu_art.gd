@@ -89,10 +89,10 @@ func _gen_midground() -> void:
 	var h := 720
 	var img := Image.create_empty(w, h, false, Image.FORMAT_RGBA8)
 	img.fill(Color(0, 0, 0, 0))   # 透明
-	# 两座神秘巨碑/遗迹轮廓（深色 + 顶部冷光描边）
-	_monolith(img, int(w * 0.5), int(h * 0.16), 120, int(h * 0.5))
-	_monolith(img, int(w * 0.27), int(h * 0.34), 70, int(h * 0.32))
-	_monolith(img, int(w * 0.73), int(h * 0.32), 80, int(h * 0.34))
+	# 三座神秘方尖碑/遗迹轮廓（上窄下宽、半透明、底部溶入雾——不再是悬浮灰板）
+	_monolith(img, int(w * 0.5), int(h * 0.17), 64, int(h * 0.50))
+	_monolith(img, int(w * 0.27), int(h * 0.30), 40, int(h * 0.40))
+	_monolith(img, int(w * 0.73), int(h * 0.28), 46, int(h * 0.42))
 	# 低空雾带
 	var fog_y := int(h * 0.58)
 	for y in range(fog_y, h):
@@ -102,20 +102,23 @@ func _gen_midground() -> void:
 			_blend(img, x, y, Color(0.82, 0.88, 0.94, a))
 	_save(img, "bg_mid.png")
 
-# 巨碑：深色竖矩形 + 顶部冷青描边 + 红色符纹点缀。
+# 方尖碑：上窄下宽（锥形）、半透明、底部渐隐入雾 + 尖顶冷光描边 + 红色符纹。
 func _monolith(img: Image, cx: int, top: int, half_w: int, height: int) -> void:
-	var dark := Color(0.09, 0.13, 0.19, 0.92)
 	for y in range(top, top + height):
-		for x in range(cx - half_w, cx + half_w):
+		var ty := float(y - top) / float(height)          # 0 顶 .. 1 底
+		var hw := int(lerpf(float(half_w) * 0.35, float(half_w), ty))   # 上窄下宽
+		var a := 0.5 * clampf((1.0 - ty) * 1.4 + 0.15, 0.12, 0.6)        # 顶实底渐隐
+		var dark := Color(0.10, 0.14, 0.20, a)
+		for x in range(cx - hw, cx + hw):
 			_blend(img, x, y, dark)
-	# 顶部冷光描边
-	for x in range(cx - half_w, cx + half_w):
-		_blend(img, x, top, Color(0.5, 0.8, 0.95, 0.6))
-		_blend(img, x, top + 1, Color(0.5, 0.8, 0.95, 0.35))
-	# 中线红色符纹
-	for y in range(top + int(height * 0.2), top + int(height * 0.7), 6):
-		_blend(img, cx, y, Color(0.85, 0.25, 0.2, 0.7))
-		_blend(img, cx - 1, y, Color(0.85, 0.25, 0.2, 0.4))
+	# 尖顶冷光描边
+	var tip_w := int(half_w * 0.35)
+	for x in range(cx - tip_w, cx + tip_w):
+		_blend(img, x, top, Color(0.5, 0.8, 0.95, 0.55))
+		_blend(img, x, top + 1, Color(0.5, 0.8, 0.95, 0.3))
+	# 中线红色符纹（上半段）
+	for y in range(top + int(height * 0.18), top + int(height * 0.55), 7):
+		_blend(img, cx, y, Color(0.85, 0.28, 0.22, 0.55))
 
 # ── 英雄剪影（透明 PNG，发光 + 暖/绿/蓝边光 + 武器暗示）──────
 
@@ -130,10 +133,10 @@ func _gen_hero(name: String, w: int, h: int, tint: Color, kind: String) -> void:
 		var hw := _hero_halfwidth(ny, float(w))
 		for x in w:
 			var dx := absf(float(x) - cx)
-			# 外发光（剪影外侧柔光）
-			var glow_band := hw + float(w) * 0.07
+			# 外发光（剪影外侧柔光，收窄+减淡，避免幽灵光晕）
+			var glow_band := hw + float(w) * 0.035
 			if dx > hw and dx <= glow_band and hw > 0.0:
-				var ga := (1.0 - (dx - hw) / (glow_band - hw)) * 0.22
+				var ga := (1.0 - (dx - hw) / (glow_band - hw)) * 0.12
 				_blend(img, x, y, Color(tint.r, tint.g, tint.b, ga))
 			# 剪影本体
 			if dx <= hw and hw > 0.0:
@@ -145,24 +148,24 @@ func _gen_hero(name: String, w: int, h: int, tint: Color, kind: String) -> void:
 	_hero_weapon(img, w, h, tint, kind)
 	_save(img, name)
 
-# 英雄轮廓半宽（按归一化 y）：头 + 肩 + 斗篷/铠甲下摆。
+# 英雄轮廓半宽（按归一化 y）：小头融入宽肩 + 直筒铠甲（弱化棋子感）。
 func _hero_halfwidth(ny: float, w: float) -> float:
 	var hw := 0.0
-	# 头部圆
-	var head_y := 0.11
-	var head_r := 0.085
+	# 头部圆（更小、更低，嵌入肩部）
+	var head_y := 0.12
+	var head_r := 0.058
 	if ny >= head_y - head_r and ny <= head_y + head_r:
 		var dyh := (ny - head_y) / head_r
 		hw = maxf(hw, sqrt(maxf(0.0, 1.0 - dyh * dyh)) * head_r * w)
-	# 躯干/铠甲（颈→肩→下摆）
-	if ny >= 0.17:
+	# 躯干/铠甲（颈→宽肩→直身→下摆微展）
+	if ny >= 0.15:
 		var body := 0.0
-		if ny < 0.30:
-			body = lerpf(0.06, 0.20, (ny - 0.17) / 0.13)   # 颈到肩展宽
-		elif ny < 0.55:
-			body = lerpf(0.20, 0.16, (ny - 0.30) / 0.25)   # 收腰
+		if ny < 0.28:
+			body = lerpf(0.09, 0.24, (ny - 0.15) / 0.13)   # 颈到宽肩
+		elif ny < 0.60:
+			body = lerpf(0.24, 0.18, (ny - 0.28) / 0.32)   # 收身（直筒）
 		else:
-			body = lerpf(0.16, 0.22, clampf((ny - 0.55) / 0.43, 0.0, 1.0))  # 下摆外扩
+			body = lerpf(0.18, 0.20, clampf((ny - 0.60) / 0.38, 0.0, 1.0))  # 下摆微展
 		if ny > 0.97:
 			body *= maxf(0.0, (1.0 - ny) / 0.03)            # 收底
 		hw = maxf(hw, body * w)

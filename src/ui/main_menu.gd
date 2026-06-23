@@ -25,7 +25,7 @@ var _vignette: ColorRect = null
 var _parallax_t: float = 0.0
 var _panel: PanelContainer = null
 var _panel_box: VBoxContainer = null
-var _weapon_glow: ColorRect = null
+var _weapon_glow: TextureRect = null
 
 var _set_sail_button: Button = null
 var _continue_button: Button = null            # 仅在存在进行中存档时创建
@@ -63,12 +63,20 @@ func _ready() -> void:
 	_animate_weapon_glow()   # 武器呼吸光属英雄层，须在登录面板之前加入（绘制于其下）
 	_relayout()
 	get_viewport().size_changed.connect(_relayout)
-	# 登录面板：半透明深色衬底（保证文字在浅色背景上的可读性）+ 内容 VBox。
+	# 登录面板：全屏 VBox 底对齐 + 面板水平居中（稳健定位，不依赖锚点 offset）。
+	var panel_anchor := VBoxContainer.new()
+	add_child(panel_anchor)
+	panel_anchor.set_anchors_preset(Control.PRESET_FULL_RECT)
+	panel_anchor.alignment = BoxContainer.ALIGNMENT_END
+	panel_anchor.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	# 半透明深色衬底（保证文字在浅色背景上的可读性）+ 内容 VBox。
 	_panel = PanelContainer.new()
-	add_child(_panel)
+	_panel.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	_panel.add_theme_stylebox_override("panel", _make_panel_style())
-	_panel.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
-	_panel.position.y -= 40   # 略离底边，避免遮挡英雄重点区
+	panel_anchor.add_child(_panel)
+	var bottom_spacer := Control.new()
+	bottom_spacer.custom_minimum_size = Vector2(0, 36)   # 略离底边
+	panel_anchor.add_child(bottom_spacer)
 	_panel_box = VBoxContainer.new()
 	_panel.add_child(_panel_box)
 	var box := _panel_box
@@ -292,7 +300,7 @@ func _relayout() -> void:
 		_hero_right.scale = Vector2(hero_scale, hero_scale)
 		_hero_right.position = Vector2(vp.x * (1.0 - spread) - 180 * hero_scale, vp.y * 0.34)
 	if _weapon_glow != null and _hero_center != null:
-		_weapon_glow.position = _hero_center.position + Vector2(120, 380) * hero_scale
+		_weapon_glow.position = _hero_center.position + Vector2(110, 380) * hero_scale - _weapon_glow.size * 0.5
 
 # 背景缓慢视差漂移（+ 轻微鼠标视差）。
 func _process(delta: float) -> void:
@@ -321,27 +329,43 @@ func _make_panel_style() -> StyleBoxFlat:
 	sb.set_content_margin_all(18)
 	return sb
 
-# 面板淡入上移（进入动画，整块面板含衬底）。
+# 面板淡入（进入动画，整块面板含衬底）。面板由容器布局，仅淡入避免与布局冲突。
 func _animate_panel_in() -> void:
 	_panel.modulate.a = 0.0
-	var start := _panel.position
-	_panel.position = start + Vector2(0, 24)
-	var t := create_tween().set_parallel(true)
-	t.tween_property(_panel, "modulate:a", 1.0, 0.45).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
-	t.tween_property(_panel, "position", start, 0.45).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	create_tween().tween_property(_panel, "modulate:a", 1.0, 0.5).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
 
-# 中央英雄武器暖色呼吸光（叠加 ColorRect + 循环 Tween）。
+# 暖色径向发光贴图（中心实、边缘透明）。
+func _make_glow_texture() -> GradientTexture2D:
+	var g := Gradient.new()
+	g.set_color(0, Color(1.0, 0.72, 0.34, 0.85))
+	g.set_color(1, Color(1.0, 0.72, 0.34, 0.0))
+	var t := GradientTexture2D.new()
+	t.gradient = g
+	t.fill = GradientTexture2D.FILL_RADIAL
+	t.fill_from = Vector2(0.5, 0.5)
+	t.fill_to = Vector2(1.0, 0.5)
+	t.width = 128
+	t.height = 128
+	return t
+
+# 中央英雄武器暖色呼吸光（柔和径向发光 + 叠加混合 + 循环 Tween）。
 func _animate_weapon_glow() -> void:
-	_weapon_glow = ColorRect.new()
-	_weapon_glow.color = Color(1.0, 0.65, 0.25, 0.0)
+	_weapon_glow = TextureRect.new()
+	_weapon_glow.texture = _make_glow_texture()
+	_weapon_glow.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_weapon_glow.custom_minimum_size = Vector2(460, 460)
+	_weapon_glow.size = Vector2(460, 460)
 	_weapon_glow.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_weapon_glow.size = Vector2(260, 260)
+	var cm := CanvasItemMaterial.new()
+	cm.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	_weapon_glow.material = cm
+	_weapon_glow.modulate.a = 0.0
 	if _hero_center != null:
-		_weapon_glow.position = _hero_center.position + Vector2(120, 380)
+		_weapon_glow.position = _hero_center.position + Vector2(110, 380) - _weapon_glow.size * 0.5
 	add_child(_weapon_glow)
 	var t := create_tween().set_loops()
-	t.tween_property(_weapon_glow, "color:a", 0.35, 1.4).set_trans(Tween.TRANS_SINE)
-	t.tween_property(_weapon_glow, "color:a", 0.08, 1.4).set_trans(Tween.TRANS_SINE)
+	t.tween_property(_weapon_glow, "modulate:a", 0.6, 1.5).set_trans(Tween.TRANS_SINE)
+	t.tween_property(_weapon_glow, "modulate:a", 0.2, 1.5).set_trans(Tween.TRANS_SINE)
 
 # 给按钮挂 hover 光扫。
 func _attach_sweep(btn: Button) -> void:
