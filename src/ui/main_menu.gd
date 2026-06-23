@@ -1,7 +1,22 @@
-# 主菜单（启动场景，白盒 Control）。标题 + 悬赏解锁进度 + 出航 + 退出。
+# 主菜单（启动场景）：奇幻英雄集结登录界面——冰原雪山背景 + 三英雄站位 +
+# 船长代号/起航/游客模式 + 继续航程/设置/退出。视觉层缺美术素材时程序化占位。
 # 导航/退出经可注入 Callable 接缝（DI over singleton），测试覆盖为 no-op。
 class_name MainMenu
 extends Control
+
+const ART_DIR := "res://assets/art/menu/"
+const ART_BG_FAR := ART_DIR + "bg_far.png"
+const ART_BG_MID := ART_DIR + "bg_mid.png"
+const ART_HERO_CENTER := ART_DIR + "hero_center.png"
+const ART_HERO_LEFT := ART_DIR + "hero_left.png"
+const ART_HERO_RIGHT := ART_DIR + "hero_right.png"
+
+var _bg_far: TextureRect = null
+var _bg_mid: TextureRect = null
+var _hero_center: TextureRect = null
+var _hero_left: TextureRect = null
+var _hero_right: TextureRect = null
+var _vignette: ColorRect = null
 
 var _set_sail_button: Button = null
 var _continue_button: Button = null            # 仅在存在进行中存档时创建
@@ -31,9 +46,14 @@ func _ready() -> void:
 	_nav_quit = _default_quit
 	_nav_settings = _default_settings
 	_nav_guest = _default_guest
+	_build_background()
+	_build_heroes()
+	_build_vignette()
+	_layout_heroes()
 	var box := VBoxContainer.new()
 	add_child(box)
-	box.set_anchors_preset(Control.PRESET_CENTER)
+	box.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
+	box.position.y -= 40   # 略离底边，避免遮挡英雄重点区
 	var title := Label.new()
 	title.text = "《孤帆棋海》"
 	box.add_child(title)
@@ -116,3 +136,89 @@ func load_captain() -> String:
 # 退出 → 关闭游戏。经接缝避免测试退出运行器。
 func _on_quit() -> void:
 	_nav_quit.call()
+
+# ── 视觉层（缺美术素材时程序化占位）─────────────────────────────
+
+# 资源存在则返回贴图，否则返回 null（缺图走占位）。
+func _load_or_null(path: String) -> Texture2D:
+	if ResourceLoader.exists(path):
+		var res: Resource = load(path)
+		if res is Texture2D:
+			return res as Texture2D
+	return null
+
+# 冷色渐变占位贴图（背景缺图时用）。
+func _cold_gradient() -> GradientTexture2D:
+	var grad := Gradient.new()
+	grad.set_color(0, Color(0.09, 0.16, 0.24))   # 上：深冷蓝
+	grad.set_color(1, Color(0.55, 0.66, 0.74))   # 下：雪雾灰蓝
+	var tex := GradientTexture2D.new()
+	tex.gradient = grad
+	tex.fill_from = Vector2(0.5, 0.0)
+	tex.fill_to = Vector2(0.5, 1.0)
+	tex.width = 64
+	tex.height = 64
+	return tex
+
+# 铺满背景的 TextureRect（缺图用冷色渐变占位）。
+func _make_bg_layer(tex: Texture2D) -> TextureRect:
+	var r := TextureRect.new()
+	r.set_anchors_preset(Control.PRESET_FULL_RECT)
+	r.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	r.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	r.texture = tex if tex != null else _cold_gradient()
+	r.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	return r
+
+func _build_background() -> void:
+	_bg_far = _make_bg_layer(_load_or_null(ART_BG_FAR))
+	add_child(_bg_far)
+	_bg_mid = _make_bg_layer(_load_or_null(ART_BG_MID))
+	if _load_or_null(ART_BG_MID) == null:
+		_bg_mid.modulate = Color(1, 1, 1, 0.0)   # 缺中景图则透明（仅留远景占位）
+	add_child(_bg_mid)
+
+# 英雄槽：有图用 TextureRect，缺图用半透明占位贴图（由 modulate 上色）。
+func _make_hero(tex: Texture2D, tint: Color) -> TextureRect:
+	var r := TextureRect.new()
+	r.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	r.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT
+	r.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	if tex != null:
+		r.texture = tex
+	else:
+		var ph := PlaceholderTexture2D.new()   # 缺图占位（透明灰块，由 modulate 上色）
+		ph.size = Vector2(420, 760)
+		r.texture = ph
+		r.modulate = tint
+	return r
+
+func _build_heroes() -> void:
+	# 左·绿色远程、右·蓝色奥术、中央·暖色主英雄（更大、最后加=最上）
+	_hero_left = _make_hero(_load_or_null(ART_HERO_LEFT), Color(0.45, 0.8, 0.4, 0.85))
+	_hero_left.custom_minimum_size = Vector2(360, 640)
+	add_child(_hero_left)
+	_hero_right = _make_hero(_load_or_null(ART_HERO_RIGHT), Color(0.4, 0.6, 0.95, 0.85))
+	_hero_right.custom_minimum_size = Vector2(360, 640)
+	add_child(_hero_right)
+	_hero_center = _make_hero(_load_or_null(ART_HERO_CENTER), Color(1.0, 0.7, 0.35, 0.95))
+	_hero_center.custom_minimum_size = Vector2(520, 880)
+	add_child(_hero_center)
+
+# 暗角叠层（半透明边框暗化占位；Task4 可换径向着色器）。
+func _build_vignette() -> void:
+	_vignette = ColorRect.new()
+	_vignette.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_vignette.color = Color(0.02, 0.04, 0.07, 0.28)
+	_vignette.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(_vignette)
+
+# 按视口尺寸摆放英雄（中央居中略上，左右分居两侧）。Task6 做窄屏收拢。
+func _layout_heroes() -> void:
+	var vp := get_viewport_rect().size
+	if _hero_center != null:
+		_hero_center.position = Vector2(vp.x * 0.5 - 260, vp.y * 0.30)
+	if _hero_left != null:
+		_hero_left.position = Vector2(vp.x * 0.18 - 180, vp.y * 0.36)
+	if _hero_right != null:
+		_hero_right.position = Vector2(vp.x * 0.82 - 180, vp.y * 0.34)

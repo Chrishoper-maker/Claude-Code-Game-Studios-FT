@@ -155,6 +155,16 @@ func test_captain_load_corrupt_returns_empty() -> void:
 	f.store_string("}{ not json")
 	f.close()
 	var mm: MainMenu = auto_free(MainMenu.new())
-	mm._captain_path = TMP_CAPTAIN
+	mm._captain_path = TMP_CAPTAIN   # before_test 已删，保证不存在
 	add_child(mm)
 	assert_str(mm.load_captain()).is_equal("")
+
+# AC-1/2/3：视觉层节点在缺美术素材时仍由占位创建、不崩。
+func test_visual_layers_present_with_placeholders() -> void:
+	var mm: MainMenu = auto_free(MainMenu.new())
+	add_child(mm)
+	assert_bool(mm._bg_far != null).is_true()
+	assert_bool(mm._hero_center != null).is_true()
+	assert_bool(mm._hero_left != null).is_true()
+	assert_bool(mm._hero_right != null).is_true()
+	assert_bool(mm._vignette != null).is_true()
