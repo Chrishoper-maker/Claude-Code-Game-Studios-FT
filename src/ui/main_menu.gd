@@ -23,6 +23,8 @@ var _hero_left: TextureRect = null
 var _hero_right: TextureRect = null
 var _vignette: ColorRect = null
 var _parallax_t: float = 0.0
+var _panel_box: VBoxContainer = null
+var _weapon_glow: ColorRect = null
 
 var _set_sail_button: Button = null
 var _continue_button: Button = null            # 仅在存在进行中存档时创建
@@ -58,7 +60,8 @@ func _ready() -> void:
 	_build_particles()
 	_build_vignette()
 	_layout_heroes()
-	var box := VBoxContainer.new()
+	_panel_box = VBoxContainer.new()
+	var box := _panel_box
 	add_child(box)
 	box.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
 	box.position.y -= 40   # 略离底边，避免遮挡英雄重点区
@@ -94,6 +97,10 @@ func _ready() -> void:
 	_quit_button.text = "退出"
 	_quit_button.pressed.connect(_on_quit)
 	box.add_child(_quit_button)
+	_style_buttons()
+	_attach_focus_glow(_captain_input)
+	_animate_weapon_glow()
+	_animate_panel_in()
 
 # 出航 → RouteScene（IDLE 自动起航；start_run 自动存档会覆盖旧存档）。经接缝避免测试真的切场景。
 func _on_set_sail() -> void:
@@ -283,3 +290,58 @@ func _process(delta: float) -> void:
 		_bg_far.position.x = base_far + mx * 18.0
 	if _bg_mid != null:
 		_bg_mid.position.x = base_mid + mx * 36.0
+
+# ── UI 动效 ─────────────────────────────────────────────────
+
+# 面板淡入上移（进入动画）。
+func _animate_panel_in() -> void:
+	_panel_box.modulate.a = 0.0
+	var start := _panel_box.position
+	_panel_box.position = start + Vector2(0, 24)
+	var t := create_tween().set_parallel(true)
+	t.tween_property(_panel_box, "modulate:a", 1.0, 0.45).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	t.tween_property(_panel_box, "position", start, 0.45).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+
+# 中央英雄武器暖色呼吸光（叠加 ColorRect + 循环 Tween）。
+func _animate_weapon_glow() -> void:
+	_weapon_glow = ColorRect.new()
+	_weapon_glow.color = Color(1.0, 0.65, 0.25, 0.0)
+	_weapon_glow.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_weapon_glow.size = Vector2(260, 260)
+	if _hero_center != null:
+		_weapon_glow.position = _hero_center.position + Vector2(120, 380)
+	add_child(_weapon_glow)
+	var t := create_tween().set_loops()
+	t.tween_property(_weapon_glow, "color:a", 0.35, 1.4).set_trans(Tween.TRANS_SINE)
+	t.tween_property(_weapon_glow, "color:a", 0.08, 1.4).set_trans(Tween.TRANS_SINE)
+
+# 给按钮挂 hover 光扫。
+func _attach_sweep(btn: Button) -> void:
+	var mat := ShaderMaterial.new()
+	mat.shader = load("res://assets/shaders/button_sweep.gdshader") as Shader
+	mat.set_shader_parameter("progress", 2.0)   # 初始不显示
+	btn.material = mat
+	btn.mouse_entered.connect(func() -> void:
+		var t := create_tween()
+		t.tween_method(func(v: float) -> void: mat.set_shader_parameter("progress", v), 0.0, 1.0, 0.45)
+		t.tween_callback(func() -> void: mat.set_shader_parameter("progress", 2.0))
+	)
+
+# 输入框聚焦边框发光。
+func _attach_focus_glow(input: LineEdit) -> void:
+	var normal := StyleBoxFlat.new()
+	normal.bg_color = Color(0.06, 0.10, 0.16, 0.85)
+	normal.set_border_width_all(1)
+	normal.border_color = Color(0.4, 0.55, 0.7, 0.8)
+	normal.set_corner_radius_all(4)
+	var focus := normal.duplicate() as StyleBoxFlat
+	focus.set_border_width_all(2)
+	focus.border_color = Color(0.55, 0.85, 1.0, 1.0)
+	input.add_theme_stylebox_override("normal", normal)
+	input.add_theme_stylebox_override("focus", focus)
+
+# 给所有菜单按钮统一 hover 光扫。
+func _style_buttons() -> void:
+	for b: Button in [_continue_button, _set_sail_button, _guest_button, _settings_button, _quit_button]:
+		if b != null:
+			_attach_sweep(b)
