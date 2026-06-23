@@ -24,6 +24,7 @@ EquipmentDataManager="*res://src/autoloads/equipment_data_manager.gd"
 MetaProgress="*res://src/autoloads/meta_progress.gd"
 MapDataManager="*res://src/autoloads/map_data_manager.gd"
 RunManager="*res://src/autoloads/run_manager.gd"
+SettingsManager="*res://src/autoloads/settings_manager.gd"
 SceneManager="*res://src/autoloads/scene_manager.gd"
 
 [display]
