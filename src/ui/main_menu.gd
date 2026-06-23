@@ -63,20 +63,10 @@ func _ready() -> void:
 	_animate_weapon_glow()   # 武器呼吸光属英雄层，须在登录面板之前加入（绘制于其下）
 	_relayout()
 	get_viewport().size_changed.connect(_relayout)
-	# 登录面板：全屏 VBox 底对齐 + 面板水平居中（稳健定位，不依赖锚点 offset）。
-	var panel_anchor := VBoxContainer.new()
-	add_child(panel_anchor)
-	panel_anchor.set_anchors_preset(Control.PRESET_FULL_RECT)
-	panel_anchor.alignment = BoxContainer.ALIGNMENT_END
-	panel_anchor.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	# 半透明深色衬底（保证文字在浅色背景上的可读性）+ 内容 VBox。
+	# 登录面板：直接添加 + 测量后手动定位到底部居中（锚点/容器对齐法在本场景不生效，改用测量定位）。
 	_panel = PanelContainer.new()
-	_panel.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	add_child(_panel)
 	_panel.add_theme_stylebox_override("panel", _make_panel_style())
-	panel_anchor.add_child(_panel)
-	var bottom_spacer := Control.new()
-	bottom_spacer.custom_minimum_size = Vector2(0, 36)   # 略离底边
-	panel_anchor.add_child(bottom_spacer)
 	_panel_box = VBoxContainer.new()
 	_panel.add_child(_panel_box)
 	var box := _panel_box
@@ -115,6 +105,8 @@ func _ready() -> void:
 	_style_buttons()
 	_attach_focus_glow(_captain_input)
 	_animate_panel_in()
+	_panel.resized.connect(_position_panel)
+	_position_panel.call_deferred()   # 内容布局完成后再测量定位
 
 # 出航 → RouteScene（IDLE 自动起航；start_run 自动存档会覆盖旧存档）。经接缝避免测试真的切场景。
 func _on_set_sail() -> void:
@@ -301,6 +293,7 @@ func _relayout() -> void:
 		_hero_right.position = Vector2(vp.x * (1.0 - spread) - 180 * hero_scale, vp.y * 0.34)
 	if _weapon_glow != null and _hero_center != null:
 		_weapon_glow.position = _hero_center.position + Vector2(110, 380) * hero_scale - _weapon_glow.size * 0.5
+	_position_panel()
 
 # 背景缓慢视差漂移（+ 轻微鼠标视差）。
 func _process(delta: float) -> void:
@@ -318,6 +311,13 @@ func _process(delta: float) -> void:
 		_bg_mid.position.x = base_mid + mx * 36.0
 
 # ── UI 动效 ─────────────────────────────────────────────────
+
+# 把登录面板按其实测尺寸定位到底部居中（不依赖锚点/容器对齐）。
+func _position_panel() -> void:
+	if _panel == null:
+		return
+	var vp := get_viewport_rect().size
+	_panel.position = Vector2((vp.x - _panel.size.x) * 0.5, vp.y - _panel.size.y - 36.0)
 
 # 半透明深色面板衬底样式（冷色描边、圆角、内边距）。
 func _make_panel_style() -> StyleBoxFlat:
