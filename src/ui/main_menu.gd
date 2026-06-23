@@ -7,24 +7,29 @@ var _set_sail_button: Button = null
 var _continue_button: Button = null            # 仅在存在进行中存档时创建
 var _quit_button: Button = null
 var _settings_button: Button = null
+var _guest_button: Button = null
+var _captain_input: LineEdit = null
 var _unlock_label: Label = null
 
 var _nav_set_sail: Callable
 var _nav_continue: Callable
 var _nav_quit: Callable
 var _nav_settings: Callable
+var _nav_guest: Callable
 func _default_set_sail() -> void: SceneManager.goto_route()
 func _default_continue() -> void:
 	RunManager.load_run()        # 还原进行中 run（停在 DEPLOYING/RECRUITING 航点）
 	SceneManager.goto_route()    # RouteScene._ready 按 current_phase 渲染对应界面
 func _default_quit() -> void: get_tree().quit()
 func _default_settings() -> void: SceneManager.goto_settings()
+func _default_guest() -> void: SceneManager.goto_route()   # 游客模式=跳过命名直接起航
 
 func _ready() -> void:
 	_nav_set_sail = _default_set_sail
 	_nav_continue = _default_continue
 	_nav_quit = _default_quit
 	_nav_settings = _default_settings
+	_nav_guest = _default_guest
 	var box := VBoxContainer.new()
 	add_child(box)
 	box.set_anchors_preset(Control.PRESET_CENTER)
@@ -40,10 +45,17 @@ func _ready() -> void:
 		_continue_button.text = "继续航程"
 		_continue_button.pressed.connect(_on_continue)
 		box.add_child(_continue_button)
+	_captain_input = LineEdit.new()
+	_captain_input.placeholder_text = "输入船长代号"
+	box.add_child(_captain_input)
 	_set_sail_button = Button.new()
-	_set_sail_button.text = "出航"
+	_set_sail_button.text = "起航"
 	_set_sail_button.pressed.connect(_on_set_sail)
 	box.add_child(_set_sail_button)
+	_guest_button = Button.new()
+	_guest_button.text = "游客模式"
+	_guest_button.pressed.connect(_on_guest)
+	box.add_child(_guest_button)
 	_settings_button = Button.new()
 	_settings_button.text = "设置"
 	_settings_button.pressed.connect(_on_settings)
@@ -64,6 +76,14 @@ func _on_continue() -> void:
 # 设置 → SettingsScreen。经接缝避免测试真的切场景。
 func _on_settings() -> void:
 	_nav_settings.call()
+
+# 游客模式 → 直接进 RouteScene。经接缝避免测试真的切场景。
+func _on_guest() -> void:
+	_nav_guest.call()
+
+# 当前船长代号（去除首尾空白）。
+func _captain_name() -> String:
+	return _captain_input.text.strip_edges()
 
 # 退出 → 关闭游戏。经接缝避免测试退出运行器。
 func _on_quit() -> void:

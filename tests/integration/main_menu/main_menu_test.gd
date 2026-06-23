@@ -97,3 +97,31 @@ func test_settings_invokes_nav_seam() -> void:
 	mm._nav_settings = func() -> void: called[0] += 1
 	mm._on_settings()
 	assert_int(called[0]).is_equal(1)
+
+# AC-5：渲染船长代号输入框。
+func test_renders_captain_input() -> void:
+	var mm: MainMenu = auto_free(MainMenu.new())
+	add_child(mm)
+	assert_bool(mm._captain_input != null).is_true()
+
+# AC-5：渲染「游客模式」按钮。
+func test_renders_guest_button() -> void:
+	var mm: MainMenu = auto_free(MainMenu.new())
+	add_child(mm)
+	assert_bool(mm._guest_button != null).is_true()
+
+# AC-5：游客模式触发导航接缝。
+func test_guest_invokes_nav_seam() -> void:
+	var mm: MainMenu = auto_free(MainMenu.new())
+	add_child(mm)
+	var called := [0]
+	mm._nav_guest = func() -> void: called[0] += 1
+	mm._on_guest()
+	assert_int(called[0]).is_equal(1)
+
+# AC-5：船长代号 getter 返回去空白后的输入文本。
+func test_captain_name_returns_trimmed_text() -> void:
+	var mm: MainMenu = auto_free(MainMenu.new())
+	add_child(mm)
+	mm._captain_input.text = "  红胡子  "
+	assert_str(mm._captain_name()).is_equal("红胡子")
