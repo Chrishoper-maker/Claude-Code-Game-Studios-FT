@@ -6,21 +6,25 @@ extends Control
 var _set_sail_button: Button = null
 var _continue_button: Button = null            # 仅在存在进行中存档时创建
 var _quit_button: Button = null
+var _settings_button: Button = null
 var _unlock_label: Label = null
 
 var _nav_set_sail: Callable
 var _nav_continue: Callable
 var _nav_quit: Callable
+var _nav_settings: Callable
 func _default_set_sail() -> void: SceneManager.goto_route()
 func _default_continue() -> void:
 	RunManager.load_run()        # 还原进行中 run（停在 DEPLOYING/RECRUITING 航点）
 	SceneManager.goto_route()    # RouteScene._ready 按 current_phase 渲染对应界面
 func _default_quit() -> void: get_tree().quit()
+func _default_settings() -> void: SceneManager.goto_settings()
 
 func _ready() -> void:
 	_nav_set_sail = _default_set_sail
 	_nav_continue = _default_continue
 	_nav_quit = _default_quit
+	_nav_settings = _default_settings
 	var box := VBoxContainer.new()
 	add_child(box)
 	box.set_anchors_preset(Control.PRESET_CENTER)
@@ -40,6 +44,10 @@ func _ready() -> void:
 	_set_sail_button.text = "出航"
 	_set_sail_button.pressed.connect(_on_set_sail)
 	box.add_child(_set_sail_button)
+	_settings_button = Button.new()
+	_settings_button.text = "设置"
+	_settings_button.pressed.connect(_on_settings)
+	box.add_child(_settings_button)
 	_quit_button = Button.new()
 	_quit_button.text = "退出"
 	_quit_button.pressed.connect(_on_quit)
@@ -52,6 +60,10 @@ func _on_set_sail() -> void:
 # 继续航程 → 还原存档并回到 RouteScene。经接缝避免测试真的读盘/切场景。
 func _on_continue() -> void:
 	_nav_continue.call()
+
+# 设置 → SettingsScreen。经接缝避免测试真的切场景。
+func _on_settings() -> void:
+	_nav_settings.call()
 
 # 退出 → 关闭游戏。经接缝避免测试退出运行器。
 func _on_quit() -> void:

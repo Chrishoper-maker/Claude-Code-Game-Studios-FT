@@ -82,3 +82,18 @@ func test_continue_invokes_nav_seam() -> void:
 	mm._nav_continue = func() -> void: called[0] += 1
 	mm._on_continue()
 	assert_int(called[0]).is_equal(1)
+
+# AC-7：渲染「设置」按钮。
+func test_renders_settings_button() -> void:
+	var mm: MainMenu = auto_free(MainMenu.new())
+	add_child(mm)
+	assert_bool(mm._settings_button != null).is_true()
+
+# AC-7：设置触发导航接缝。
+func test_settings_invokes_nav_seam() -> void:
+	var mm: MainMenu = auto_free(MainMenu.new())
+	add_child(mm)
+	var called := [0]
+	mm._nav_settings = func() -> void: called[0] += 1
+	mm._on_settings()
+	assert_int(called[0]).is_equal(1)
