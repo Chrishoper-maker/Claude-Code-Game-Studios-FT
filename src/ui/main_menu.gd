@@ -59,6 +59,7 @@ func _ready() -> void:
 	_build_heroes()
 	_build_particles()
 	_build_vignette()
+	_animate_weapon_glow()   # 武器呼吸光属英雄层，须在登录面板之前加入（绘制于其下）
 	_relayout()
 	get_viewport().size_changed.connect(_relayout)
 	_panel_box = VBoxContainer.new()
@@ -100,7 +101,6 @@ func _ready() -> void:
 	box.add_child(_quit_button)
 	_style_buttons()
 	_attach_focus_glow(_captain_input)
-	_animate_weapon_glow()
 	_animate_panel_in()
 
 # 出航 → RouteScene（IDLE 自动起航；start_run 自动存档会覆盖旧存档）。经接缝避免测试真的切场景。
