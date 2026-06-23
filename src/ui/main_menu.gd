@@ -11,12 +11,18 @@ const ART_HERO_CENTER := ART_DIR + "hero_center.png"
 const ART_HERO_LEFT := ART_DIR + "hero_left.png"
 const ART_HERO_RIGHT := ART_DIR + "hero_right.png"
 
+const MOUSE_PARALLAX := true
+
 var _bg_far: TextureRect = null
 var _bg_mid: TextureRect = null
+var _fog: ColorRect = null
+var _snow: GPUParticles2D = null
+var _motes: GPUParticles2D = null
 var _hero_center: TextureRect = null
 var _hero_left: TextureRect = null
 var _hero_right: TextureRect = null
 var _vignette: ColorRect = null
+var _parallax_t: float = 0.0
 
 var _set_sail_button: Button = null
 var _continue_button: Button = null            # 仅在存在进行中存档时创建
@@ -47,7 +53,9 @@ func _ready() -> void:
 	_nav_settings = _default_settings
 	_nav_guest = _default_guest
 	_build_background()
+	_build_fog()
 	_build_heroes()
+	_build_particles()
 	_build_vignette()
 	_layout_heroes()
 	var box := VBoxContainer.new()
@@ -178,6 +186,44 @@ func _build_background() -> void:
 		_bg_mid.modulate = Color(1, 1, 1, 0.0)   # 缺中景图则透明（仅留远景占位）
 	add_child(_bg_mid)
 
+# 滚动雾着色器层（背景与英雄之间）。
+func _build_fog() -> void:
+	_fog = ColorRect.new()
+	_fog.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_fog.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var mat := ShaderMaterial.new()
+	mat.shader = load("res://assets/shaders/menu_fog.gdshader") as Shader
+	_fog.material = mat
+	add_child(_fog)
+
+# 通用下落/上浮粒子（vy<0 上浮）。
+func _make_particles(amount: int, color: Color, vy: float, spread_y: float) -> GPUParticles2D:
+	var p := GPUParticles2D.new()
+	p.amount = amount
+	p.lifetime = 8.0
+	p.preprocess = 4.0
+	var pm := ParticleProcessMaterial.new()
+	pm.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX
+	pm.emission_box_extents = Vector3(get_viewport_rect().size.x * 0.6, 8.0, 1.0)
+	pm.direction = Vector3(0, signf(vy), 0)
+	pm.gravity = Vector3.ZERO
+	pm.initial_velocity_min = absf(vy) * 0.6
+	pm.initial_velocity_max = absf(vy)
+	pm.scale_min = 0.5
+	pm.scale_max = 1.8
+	pm.color = color
+	p.process_material = pm
+	p.position = Vector2(get_viewport_rect().size.x * 0.5, spread_y)
+	return p
+
+func _build_particles() -> void:
+	# 雪花：顶部下落，冷白
+	_snow = _make_particles(120, Color(0.92, 0.96, 1.0, 0.8), 60.0, 0.0)
+	add_child(_snow)
+	# 能量微粒：底部上浮，冷蓝
+	_motes = _make_particles(40, Color(0.5, 0.75, 1.0, 0.6), -28.0, get_viewport_rect().size.y)
+	add_child(_motes)
+
 # 英雄槽：有图用 TextureRect，缺图用半透明占位贴图（由 modulate 上色）。
 func _make_hero(tex: Texture2D, tint: Color) -> TextureRect:
 	var r := TextureRect.new()
@@ -222,3 +268,18 @@ func _layout_heroes() -> void:
 		_hero_left.position = Vector2(vp.x * 0.18 - 180, vp.y * 0.36)
 	if _hero_right != null:
 		_hero_right.position = Vector2(vp.x * 0.82 - 180, vp.y * 0.34)
+
+# 背景缓慢视差漂移（+ 轻微鼠标视差）。
+func _process(delta: float) -> void:
+	_parallax_t += delta
+	var base_far := sin(_parallax_t * 0.15) * 12.0
+	var base_mid := sin(_parallax_t * 0.15) * 24.0
+	var mx := 0.0
+	if MOUSE_PARALLAX:
+		var vp := get_viewport_rect().size
+		var m := get_viewport().get_mouse_position()
+		mx = (m.x / maxf(vp.x, 1.0) - 0.5)   # -0.5..0.5
+	if _bg_far != null:
+		_bg_far.position.x = base_far + mx * 18.0
+	if _bg_mid != null:
+		_bg_mid.position.x = base_mid + mx * 36.0
