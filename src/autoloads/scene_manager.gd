@@ -7,9 +7,17 @@ extends Node
 
 const BATTLE_SCENE := preload("res://scenes/BattleScene.tscn")
 const ROUTE_SCENE := preload("res://scenes/RouteScene.tscn")
+const MAIN_MENU_SCENE := preload("res://scenes/MainMenu.tscn")
+const SETTINGS_SCENE := preload("res://scenes/SettingsScreen.tscn")
 
 func goto_battle() -> void:
 	get_tree().change_scene_to_packed(BATTLE_SCENE)
 
 func goto_route() -> void:
 	get_tree().change_scene_to_packed(ROUTE_SCENE)
+
+func goto_settings() -> void:
+	get_tree().change_scene_to_packed(SETTINGS_SCENE)
+
+func goto_main_menu() -> void:
+	get_tree().change_scene_to_packed(MAIN_MENU_SCENE)
