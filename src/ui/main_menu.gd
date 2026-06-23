@@ -9,6 +9,7 @@ var _quit_button: Button = null
 var _settings_button: Button = null
 var _guest_button: Button = null
 var _captain_input: LineEdit = null
+var _captain_path: String = "user://captain.json"   # 测试可注入
 var _unlock_label: Label = null
 
 var _nav_set_sail: Callable
@@ -48,6 +49,7 @@ func _ready() -> void:
 	_captain_input = LineEdit.new()
 	_captain_input.placeholder_text = "输入船长代号"
 	box.add_child(_captain_input)
+	_captain_input.text = load_captain()
 	_set_sail_button = Button.new()
 	_set_sail_button.text = "起航"
 	_set_sail_button.pressed.connect(_on_set_sail)
@@ -67,6 +69,7 @@ func _ready() -> void:
 
 # 出航 → RouteScene（IDLE 自动起航；start_run 自动存档会覆盖旧存档）。经接缝避免测试真的切场景。
 func _on_set_sail() -> void:
+	save_captain()
 	_nav_set_sail.call()
 
 # 继续航程 → 还原存档并回到 RouteScene。经接缝避免测试真的读盘/切场景。
@@ -79,11 +82,36 @@ func _on_settings() -> void:
 
 # 游客模式 → 直接进 RouteScene。经接缝避免测试真的切场景。
 func _on_guest() -> void:
+	save_captain()
 	_nav_guest.call()
 
 # 当前船长代号（去除首尾空白）。
 func _captain_name() -> String:
 	return _captain_input.text.strip_edges()
+
+# 把当前船长代号写入本地 JSON（空名也安全）。仿 MetaProgress 持久化。
+func save_captain() -> void:
+	var f := FileAccess.open(_captain_path, FileAccess.WRITE)
+	if f == null:
+		push_error("MainMenu.save_captain: 无法写入 %s" % _captain_path)
+		return
+	f.store_string(JSON.stringify({"name": _captain_name()}))
+	f.close()
+
+# 读取上次船长代号；缺文件/坏文件 → 空串（不报错）。
+func load_captain() -> String:
+	if not FileAccess.file_exists(_captain_path):
+		return ""
+	var f := FileAccess.open(_captain_path, FileAccess.READ)
+	if f == null:
+		return ""
+	var text := f.get_as_text()
+	f.close()
+	var parsed: Variant = JSON.parse_string(text)
+	if parsed is Dictionary:
+		var d := parsed as Dictionary
+		return str(d.get("name", ""))
+	return ""
 
 # 退出 → 关闭游戏。经接缝避免测试退出运行器。
 func _on_quit() -> void:

@@ -2,18 +2,23 @@
 extends GdUnitTestSuite
 
 const TMP_SAVE := "user://test_main_menu_save.json"
+const TMP_CAPTAIN := "user://test_main_menu_captain.json"
 
 func before_test() -> void:
 	MetaProgress.unlocked_crew_ids.clear()
 	RunManager._save_path = TMP_SAVE
 	if FileAccess.file_exists(TMP_SAVE):
 		DirAccess.remove_absolute(TMP_SAVE)
+	if FileAccess.file_exists(TMP_CAPTAIN):
+		DirAccess.remove_absolute(TMP_CAPTAIN)
 
 func after_test() -> void:
 	MetaProgress.unlocked_crew_ids.clear()
 	if FileAccess.file_exists(TMP_SAVE):
 		DirAccess.remove_absolute(TMP_SAVE)
 	RunManager._save_path = "user://run.json"
+	if FileAccess.file_exists(TMP_CAPTAIN):
+		DirAccess.remove_absolute(TMP_CAPTAIN)
 
 # 写一个最小存档文件，使 RunManager.has_save() 为真。
 func _write_dummy_save() -> void:
@@ -40,6 +45,7 @@ func test_unlock_progress_reflects_metaprogress() -> void:
 # AC-3：出航触发导航接缝。
 func test_set_sail_invokes_nav_seam() -> void:
 	var mm: MainMenu = auto_free(MainMenu.new())
+	mm._captain_path = TMP_CAPTAIN
 	add_child(mm)
 	var called := [0]
 	mm._nav_set_sail = func() -> void: called[0] += 1
@@ -113,6 +119,7 @@ func test_renders_guest_button() -> void:
 # AC-5：游客模式触发导航接缝。
 func test_guest_invokes_nav_seam() -> void:
 	var mm: MainMenu = auto_free(MainMenu.new())
+	mm._captain_path = TMP_CAPTAIN
 	add_child(mm)
 	var called := [0]
 	mm._nav_guest = func() -> void: called[0] += 1
@@ -125,3 +132,29 @@ func test_captain_name_returns_trimmed_text() -> void:
 	add_child(mm)
 	mm._captain_input.text = "  红胡子  "
 	assert_str(mm._captain_name()).is_equal("红胡子")
+
+# AC-5：船长代号存盘往返（注入临时路径）。
+func test_captain_save_load_roundtrip() -> void:
+	var mm: MainMenu = auto_free(MainMenu.new())
+	mm._captain_path = TMP_CAPTAIN
+	add_child(mm)
+	mm._captain_input.text = "钢爪"
+	mm.save_captain()
+	assert_str(mm.load_captain()).is_equal("钢爪")
+
+# AC-5：缺文件 load → 空串。
+func test_captain_load_missing_returns_empty() -> void:
+	var mm: MainMenu = auto_free(MainMenu.new())
+	mm._captain_path = TMP_CAPTAIN   # before_test 已删，保证不存在
+	add_child(mm)
+	assert_str(mm.load_captain()).is_equal("")
+
+# AC-5：坏文件 load → 空串。
+func test_captain_load_corrupt_returns_empty() -> void:
+	var f := FileAccess.open(TMP_CAPTAIN, FileAccess.WRITE)
+	f.store_string("}{ not json")
+	f.close()
+	var mm: MainMenu = auto_free(MainMenu.new())
+	mm._captain_path = TMP_CAPTAIN
+	add_child(mm)
+	assert_str(mm.load_captain()).is_equal("")
