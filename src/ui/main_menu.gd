@@ -23,6 +23,7 @@ var _hero_left: TextureRect = null
 var _hero_right: TextureRect = null
 var _vignette: ColorRect = null
 var _parallax_t: float = 0.0
+var _panel: PanelContainer = null
 var _panel_box: VBoxContainer = null
 var _weapon_glow: ColorRect = null
 
@@ -62,11 +63,15 @@ func _ready() -> void:
 	_animate_weapon_glow()   # 武器呼吸光属英雄层，须在登录面板之前加入（绘制于其下）
 	_relayout()
 	get_viewport().size_changed.connect(_relayout)
+	# 登录面板：半透明深色衬底（保证文字在浅色背景上的可读性）+ 内容 VBox。
+	_panel = PanelContainer.new()
+	add_child(_panel)
+	_panel.add_theme_stylebox_override("panel", _make_panel_style())
+	_panel.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
+	_panel.position.y -= 40   # 略离底边，避免遮挡英雄重点区
 	_panel_box = VBoxContainer.new()
+	_panel.add_child(_panel_box)
 	var box := _panel_box
-	add_child(box)
-	box.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
-	box.position.y -= 40   # 略离底边，避免遮挡英雄重点区
 	var title := Label.new()
 	title.text = "《孤帆棋海》"
 	box.add_child(title)
@@ -306,14 +311,24 @@ func _process(delta: float) -> void:
 
 # ── UI 动效 ─────────────────────────────────────────────────
 
-# 面板淡入上移（进入动画）。
+# 半透明深色面板衬底样式（冷色描边、圆角、内边距）。
+func _make_panel_style() -> StyleBoxFlat:
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.04, 0.07, 0.11, 0.78)
+	sb.set_border_width_all(1)
+	sb.border_color = Color(0.45, 0.6, 0.75, 0.7)
+	sb.set_corner_radius_all(8)
+	sb.set_content_margin_all(18)
+	return sb
+
+# 面板淡入上移（进入动画，整块面板含衬底）。
 func _animate_panel_in() -> void:
-	_panel_box.modulate.a = 0.0
-	var start := _panel_box.position
-	_panel_box.position = start + Vector2(0, 24)
+	_panel.modulate.a = 0.0
+	var start := _panel.position
+	_panel.position = start + Vector2(0, 24)
 	var t := create_tween().set_parallel(true)
-	t.tween_property(_panel_box, "modulate:a", 1.0, 0.45).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
-	t.tween_property(_panel_box, "position", start, 0.45).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	t.tween_property(_panel, "modulate:a", 1.0, 0.45).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	t.tween_property(_panel, "position", start, 0.45).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
 
 # 中央英雄武器暖色呼吸光（叠加 ColorRect + 循环 Tween）。
 func _animate_weapon_glow() -> void:
