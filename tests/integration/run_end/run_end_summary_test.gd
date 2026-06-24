@@ -21,7 +21,7 @@ func test_run_end_renders_summary() -> void:
 	add_child(route)
 	assert_str(route._active_screen).is_equal("run_end")
 
-# 重新出航 → 复位并进入首岛战斗。
+# 重新出航 → 复位并进入选航（start_run 现进 CHARTING，须再经 confirm_route+deploy 进首岛）。
 func test_run_end_restart_returns_to_first_battle() -> void:
 	RunManager.current_island_index = 2
 	RunManager.last_run_won = false
@@ -29,5 +29,15 @@ func test_run_end_restart_returns_to_first_battle() -> void:
 	var route: RouteScene = auto_free(RouteScene.new())
 	add_child(route)
 	route._on_restart_pressed()
+	# Task 8：重新出航 → start_run → CHARTING（选航）→ 选航后进部署再进战斗
+	assert_str(RunManager.current_phase).is_equal("CHARTING")
+	assert_int(RunManager.current_island_index).is_equal(-1)
+	# 继续驱动到首岛战斗（选第一个候选地图 + roster≤4 自动部署）
+	var offers := RunManager.get_route_offers()
+	RunManager.confirm_route((offers[0] as MapDefinition).map_id)
+	var ids: Array[String] = []
+	for c in RunManager.get_roster():
+		ids.append(c.id)
+	RunManager.confirm_deploy(ids)
 	assert_str(RunManager.current_phase).is_equal("BATTLE")
 	assert_int(RunManager.current_island_index).is_equal(0)

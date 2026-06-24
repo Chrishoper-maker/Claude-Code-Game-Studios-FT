@@ -18,15 +18,17 @@ func _ready() -> void:
 			_begin_run()
 		"RECRUITING":
 			_notice_then(_show_recruit_offers)
+		"CHARTING":
+			_show_route_offers()
 		"RUN_END":
 			_notice_then(_show_run_end)
 		_:
 			_enter_deploy()
 
-# 起航：填起始编制 → 进入部署。
+# 起航：填起始编制 → 选航（start_run 现进 CHARTING）。
 func _begin_run() -> void:
 	RunManager.start_run()
-	_enter_deploy()
+	_show_route_offers()
 
 # 部署统一入口：roster ≤ DEPLOY_LIMIT 自动全员；否则手动选人。
 func _enter_deploy() -> void:
@@ -158,7 +160,45 @@ func _show_recruit_offers() -> void:
 
 func _on_recruit_chosen(unit_id: String) -> void:
 	RunManager.confirm_recruit(unit_id)
+	_show_route_offers()
+
+# 选航界面（白盒，只用按钮）：3 张目的地卡，显示「地名 · 难度N · 敌情摘要」。
+func _show_route_offers() -> void:
+	var offers := RunManager.get_route_offers()
+	if offers.is_empty():
+		_enter_deploy()        # 无候选（极端空池）→ 直接部署，不崩
+		return
+	_clear_ui()
+	_active_screen = "charting"
+	var box := VBoxContainer.new()
+	add_child(box)
+	box.set_anchors_preset(Control.PRESET_CENTER)
+	var title := Label.new()
+	title.text = "选择下一处航点"
+	box.add_child(title)
+	for m in offers:
+		var map_def := m as MapDefinition
+		var btn := Button.new()
+		btn.text = "%s · 难度%d · %s" % [map_def.display_name, map_def.island_tier, _enemy_summary(map_def)]
+		btn.pressed.connect(_on_route_chosen.bind(map_def.map_id))
+		box.add_child(btn)
+
+func _on_route_chosen(map_id: String) -> void:
+	RunManager.confirm_route(map_id)
 	_enter_deploy()
+
+# 敌情白盒摘要："近战×N 远程×N 突击×N 守卫×N"（仅列非零）。
+func _enemy_summary(map_def: MapDefinition) -> String:
+	var counts := {"MELEE": 0, "RANGED": 0, "SWARMER": 0, "GUARDIAN": 0}
+	for slot in map_def.enemy_roster:
+		if counts.has(slot.behavior_type):
+			counts[slot.behavior_type] += 1
+	var labels := {"MELEE": "近战", "RANGED": "远程", "SWARMER": "突击", "GUARDIAN": "守卫"}
+	var parts: Array[String] = []
+	for k in ["MELEE", "RANGED", "SWARMER", "GUARDIAN"]:
+		if int(counts[k]) > 0:
+			parts.append("%s×%d" % [labels[k], int(counts[k])])
+	return " ".join(parts)
 
 # 装备白盒摘要："名 +N攻 +N血 ..."（仅列非零增量）。
 func _equipment_summary(eq: EquipmentDefinition) -> String:
@@ -219,4 +259,4 @@ func _show_run_end() -> void:
 
 func _on_restart_pressed() -> void:
 	RunManager.start_run()
-	_enter_deploy()
+	_show_route_offers()
