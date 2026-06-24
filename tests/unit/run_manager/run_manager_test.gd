@@ -16,8 +16,8 @@ func after_test() -> void:
 	RunManager._goto_battle = RunManager._default_goto_battle
 	RunManager._goto_route = RunManager._default_goto_route
 
-func test_start_run_enters_deploying_phase() -> void:
-	assert_str(RunManager.current_phase).is_equal("DEPLOYING")
+func test_start_run_enters_charting_phase() -> void:
+	assert_str(RunManager.current_phase).is_equal("CHARTING")
 
 func test_start_run_resets_island_index() -> void:
 	assert_int(RunManager.current_island_index).is_equal(-1)
@@ -106,7 +106,7 @@ func test_start_run_resets_run_state() -> void:
 	assert_int(RunManager._last_offers.size()).is_equal(0)
 	assert_int(RunManager.pending_deploy.size()).is_equal(0)
 	assert_int(RunManager.current_island_index).is_equal(-1)
-	assert_str(RunManager.current_phase).is_equal("DEPLOYING")
+	assert_str(RunManager.current_phase).is_equal("CHARTING")
 	assert_bool(RunManager.last_run_won).is_false()
 
 func test_battle_won_non_final_enters_recruiting() -> void:
@@ -175,7 +175,7 @@ func test_confirm_recruit_adds_choice_excludes_rest() -> void:
 		ids.append((c as CrewDefinition).id)
 	assert_bool(ids.has(chosen)).is_true()
 	assert_bool(RunManager._excluded_offers.has(rest)).is_true()
-	assert_str(RunManager.current_phase).is_equal("DEPLOYING")
+	assert_str(RunManager.current_phase).is_equal("CHARTING")
 
 func test_confirm_deploy_builds_pending_and_advances_island() -> void:
 	# Arrange: roster 已含起始编制（before_test）

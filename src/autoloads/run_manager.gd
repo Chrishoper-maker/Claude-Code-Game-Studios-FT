@@ -124,7 +124,7 @@ func start_run() -> void:
 	for def in UnitDataManager.get_all_units():
 		if def is CrewDefinition and (def as CrewDefinition).recruit_pool_tier == "starting":
 			roster.append(def as CrewDefinition)
-	_set_run_phase(RunPhase.RUN_DEPLOYING)
+	_set_run_phase(RunPhase.RUN_CHARTING)
 
 func get_roster() -> Array[CrewDefinition]:
 	return roster
@@ -252,7 +252,7 @@ func confirm_recruit(unit_id: String) -> void:
 			_excluded_offers.append(offered_id)
 	_last_offers.clear()
 	_offer_equipment.clear()
-	_set_run_phase(RunPhase.RUN_DEPLOYING)
+	_set_run_phase(RunPhase.RUN_CHARTING)
 
 # 部署确认 → 进入战斗（ADR-0002 场景切换序列）。pending_deploy = roster 中被选 id 的 defs。
 func confirm_deploy(selected_ids: Array) -> void:

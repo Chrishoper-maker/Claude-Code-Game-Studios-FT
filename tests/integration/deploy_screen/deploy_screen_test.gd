@@ -51,7 +51,7 @@ func test_ac2_large_roster_shows_selection() -> void:
 	add_child(route)
 	assert_int(route._deploy_buttons.size()).is_equal(5)
 	assert_bool(route._deploy_confirm_button.disabled).is_true()
-	assert_str(RunManager.current_phase).is_equal("DEPLOYING")
+	assert_str(RunManager.current_phase).is_equal("CHARTING")
 
 # AC-3：选满 4 人确认 → confirm_deploy 收到那 4 个 id。
 func test_ac3_select_four_and_confirm() -> void:

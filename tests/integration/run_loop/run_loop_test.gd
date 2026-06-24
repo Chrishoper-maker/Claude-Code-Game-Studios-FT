@@ -33,9 +33,9 @@ func _roster_ids() -> Array:
 func _deploy_roster() -> void:
 	RunManager.confirm_deploy(_roster_ids())
 
-# AC-1：起航 → DEPLOYING + 起始编制（阿斩 swordsman + 梅莉 bulwark）入队。
-func test_ac1_start_run_deploys_starting_crew() -> void:
-	assert_str(RunManager.current_phase).is_equal("DEPLOYING")
+# AC-1：起航 → CHARTING + 起始编制（阿斩 swordsman + 梅莉 bulwark）入队。
+func test_ac1_start_run_charts_then_holds_starting_crew() -> void:
+	assert_str(RunManager.current_phase).is_equal("CHARTING")
 	var ids := _roster_ids()
 	assert_int(ids.size()).is_equal(RunManager.STARTING_CREW)
 	for sid in STARTING_IDS:
@@ -96,7 +96,7 @@ func test_ac6_restart_returns_to_first_island() -> void:
 	assert_str(RunManager.current_phase).is_equal("RUN_END")
 	RunManager.start_run()                 # RouteScene._on_restart_pressed 等价
 	assert_int(RunManager.current_island_index).is_equal(-1)
-	assert_str(RunManager.current_phase).is_equal("DEPLOYING")
+	assert_str(RunManager.current_phase).is_equal("CHARTING")
 	_deploy_roster()
 	assert_int(RunManager.current_island_index).is_equal(0)
 	assert_str(RunManager.current_phase).is_equal("BATTLE")
