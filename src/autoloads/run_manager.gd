@@ -10,6 +10,7 @@ extends Node
 # ── 注册常量（entities.yaml）──
 const STARTING_CREW := 2
 const RECRUIT_OFFER_COUNT := 3
+const ROUTE_OFFER_COUNT := 3
 const ISLAND_COUNT_MAX := 5
 const DEPLOY_LIMIT := 4
 
@@ -50,6 +51,9 @@ var last_run_won: bool = false                   # run-end 页据此判「出航
 var _unlocked_this_run: String = ""               # 本航新解锁的悬赏船员持久 id（run-end 展示；空=无）
 var _excluded_offers: Array[String] = []         # 本 run 落选 unit_id（不再 offer）
 var _last_offers: Array[String] = []             # 本批候选 unit_id（confirm_recruit 据此排除其余）
+var _chosen_map_id: String = ""             # 本次选航选定的 map_id（battle_map.load_map 读）
+var _visited_map_ids: Array[String] = []     # 本 run 已访问 map_id（选航不重复）
+var _last_route_offers: Array[String] = []   # 本批选航候选 map_id（confirm_route 据此校验）
 var _roster_equipment: Dictionary = {}   # crew_id → equipment_id（已招船员持有的装备）
 var _offer_equipment: Dictionary = {}    # crew_id → equipment_id（本批候选滚到的装备）
 var _rng: RandomNumberGenerator = RandomNumberGenerator.new()  # 招募抽样（测试可 seed；断言不变量）
@@ -111,6 +115,9 @@ func start_run() -> void:
 	pending_deploy.clear()
 	_downed_this_run.clear()
 	_downed_pending_notice.clear()
+	_chosen_map_id = ""
+	_visited_map_ids.clear()
+	_last_route_offers.clear()
 	current_island_index = -1
 	last_run_won = false
 	_unlocked_this_run = ""
@@ -163,6 +170,52 @@ func get_recruit_offers() -> Array[CrewDefinition]:
 		for crew in offers:
 			var pick := equip_pool[_rng.randi_range(0, equip_pool.size() - 1)]
 			_offer_equipment[crew.id] = pick.id
+	return offers
+
+# 即将抵达岛号 → 目标 island_tier 集合（可调）。next_idx = current_island_index + 1。
+func _target_tiers_for_island(next_idx: int) -> Array[int]:
+	match next_idx:
+		0: return [1]
+		1, 2: return [1, 2]
+		3: return [2, 3]
+		_: return [3]   # 4 及之后（末岛）
+
+# 三张选航候选：按"即将抵达岛"的目标 tier 抽 ≤ROUTE_OFFER_COUNT 张未访问地图；
+# 不足则放宽 tier（全体未访问），再不足则放宽 visited（全体）。确定性（_rng + map_id 排序）。
+func get_route_offers() -> Array[MapDefinition]:
+	var next_idx := current_island_index + 1
+	var tiers := _target_tiers_for_island(next_idx)
+	var pool: Array[MapDefinition] = []
+	# 主池：目标 tier 未访问
+	for t in tiers:
+		for m in MapDataManager.get_maps_for_tier(t):
+			if not _visited_map_ids.has(m.map_id) and not pool.has(m):
+				pool.append(m)
+	# 降级①：放宽到全体未访问
+	if pool.size() < ROUTE_OFFER_COUNT:
+		for m in MapDataManager.get_all_maps():
+			if not _visited_map_ids.has(m.map_id) and not pool.has(m):
+				pool.append(m)
+	# 降级②：仍不足则放宽 visited（允许历史重复，但本批仍去重）
+	if pool.size() < ROUTE_OFFER_COUNT:
+		for m in MapDataManager.get_all_maps():
+			if not pool.has(m):
+				pool.append(m)
+	# 先按 map_id 排序消除扫描顺序差异 → 再 Fisher-Yates（确定性）
+	pool.sort_custom(func(a: MapDefinition, b: MapDefinition) -> bool: return a.map_id < b.map_id)
+	for i in range(pool.size() - 1, 0, -1):
+		var j := _rng.randi_range(0, i)
+		var tmp := pool[i]
+		pool[i] = pool[j]
+		pool[j] = tmp
+	var offers: Array[MapDefinition] = []
+	for m in pool:
+		if offers.size() >= ROUTE_OFFER_COUNT:
+			break
+		offers.append(m)
+	_last_route_offers.clear()
+	for o in offers:
+		_last_route_offers.append(o.map_id)
 	return offers
 
 # 选中候选加入 roster；本批其余候选进 _excluded_offers（本 run 不再 offer）；→DEPLOYING。
