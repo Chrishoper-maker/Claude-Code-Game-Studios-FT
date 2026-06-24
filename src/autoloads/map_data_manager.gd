@@ -18,6 +18,13 @@ func get_map(map_id: String) -> MapDefinition:
 func get_maps_for_tier(island_tier: int) -> Array[MapDefinition]:
 	return _by_tier.get(island_tier, [] as Array[MapDefinition])
 
+# 全部已加载地图（任意顺序）；选航降级抽取用。
+func get_all_maps() -> Array[MapDefinition]:
+	var out: Array[MapDefinition] = []
+	for v in _cache.values():
+		out.append(v as MapDefinition)
+	return out
+
 func _scan_and_load() -> void:
 	var dir := DirAccess.open(MAPS_DATA_PATH)
 	if dir == null:
