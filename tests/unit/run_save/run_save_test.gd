@@ -61,3 +61,16 @@ func test_load_partial_dict_preserves_absent_fields() -> void:
 	assert_int(RunManager.current_island_index).is_equal(4)
 	assert_bool(RunManager.last_run_won).is_true()
 	assert_str(RunManager.current_phase).is_equal("RECRUITING")
+
+# 选航字段往返（子项目①）。
+func test_save_load_roundtrips_route_state() -> void:
+	RunManager.start_run()
+	RunManager._chosen_map_id = "battle_map_004"
+	RunManager._visited_map_ids = ["battle_map_001", "battle_map_004"]
+	RunManager._last_route_offers = ["battle_map_005", "battle_map_006"]
+	var d := RunManager.to_save_dict()
+	RunManager.start_run()   # 打乱清空
+	RunManager.load_from_save_dict(d)
+	assert_str(RunManager._chosen_map_id).is_equal("battle_map_004")
+	assert_array(RunManager._visited_map_ids).is_equal(["battle_map_001", "battle_map_004"])
+	assert_array(RunManager._last_route_offers).is_equal(["battle_map_005", "battle_map_006"])

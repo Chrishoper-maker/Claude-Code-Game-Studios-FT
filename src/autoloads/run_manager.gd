@@ -351,6 +351,9 @@ func to_save_dict() -> Dictionary:
 		"last_offers": _last_offers.duplicate(),
 		"rng_state": str(_rng.state),
 		"roster_equipment": _roster_equipment.duplicate(),
+		"chosen_map_id": _chosen_map_id,
+		"visited_map_ids": _visited_map_ids.duplicate(),
+		"last_route_offers": _last_route_offers.duplicate(),
 	}
 
 # 反序列化恢复（直接赋 _phase，不发信号）。缺失 crew id 防御性跳过。
@@ -371,6 +374,9 @@ func load_from_save_dict(d: Dictionary) -> void:
 	_downed_pending_notice = _to_string_array(d.get("downed_pending_notice", []))
 	_excluded_offers = _to_string_array(d.get("excluded_offers", []))
 	_last_offers = _to_string_array(d.get("last_offers", []))
+	_chosen_map_id = str(d.get("chosen_map_id", ""))
+	_visited_map_ids = _to_string_array(d.get("visited_map_ids", []))
+	_last_route_offers = _to_string_array(d.get("last_route_offers", []))
 	_phase = _phase_from_string(str(d.get("phase", "IDLE")))
 	_rng.state = int(str(d.get("rng_state", "0")))
 	# 装备账本恢复：仅保留 crew 仍在 roster、且 equipment 有定义的条目（缺失优雅跳过）。
