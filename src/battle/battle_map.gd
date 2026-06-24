@@ -80,9 +80,11 @@ func deploy_crew(crew_defs: Array, positions: Array, equipments: Array = []) -> 
 	return true
 
 # 由 BattleScene._ready() 调用（ADR-0002 / architecture.md 4d）。需先 setup() 注入引用。
-# MVP：忽略 island_index，固定加载 battle_map_001（航线系统接管后按 index 选图）。
+# 航线系统：加载 RunManager 选定的地图；未选（空）回退 MVP_MAP_ID（测试/异常安全）。
 func load_map(_island_index: int) -> void:
-	var map_def := MapDataManager.get_map(MVP_MAP_ID)
+	var chosen := RunManager.get_chosen_map_id()
+	var map_id := chosen if chosen != "" else MVP_MAP_ID
+	var map_def := MapDataManager.get_map(map_id)
 	if map_def == null:
 		EventBus.map_load_failed.emit(&"map_not_found")
 		return
