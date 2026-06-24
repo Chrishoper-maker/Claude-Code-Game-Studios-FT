@@ -218,6 +218,25 @@ func get_route_offers() -> Array[MapDefinition]:
 		_last_route_offers.append(o.map_id)
 	return offers
 
+# 选定航点：记 map_id + 标记本 run 已访问 + 清候选 → DEPLOYING。
+# 坏 id（无定义或不在本批候选）：push_error 且不改状态（仿 confirm_recruit）。
+func confirm_route(map_id: String) -> void:
+	if MapDataManager.get_map(map_id) == null:
+		push_error("RunManager.confirm_route: 未知 map_id — %s" % map_id)
+		return
+	if not _last_route_offers.has(map_id):
+		push_error("RunManager.confirm_route: map_id 不在本批候选 — %s" % map_id)
+		return
+	_chosen_map_id = map_id
+	if not _visited_map_ids.has(map_id):
+		_visited_map_ids.append(map_id)
+	_last_route_offers.clear()
+	_set_run_phase(RunPhase.RUN_DEPLOYING)
+
+# 本次选航选定的 map_id（battle_map.load_map 读）；未选则 ""。
+func get_chosen_map_id() -> String:
+	return _chosen_map_id
+
 # 选中候选加入 roster；本批其余候选进 _excluded_offers（本 run 不再 offer）；→DEPLOYING。
 func confirm_recruit(unit_id: String) -> void:
 	var def := UnitDataManager.get_unit(unit_id)

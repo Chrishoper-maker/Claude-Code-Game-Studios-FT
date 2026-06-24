@@ -62,3 +62,23 @@ func test_target_tiers_mapping() -> void:
 	assert_array(RunManager._target_tiers_for_island(2)).is_equal([1, 2])
 	assert_array(RunManager._target_tiers_for_island(3)).is_equal([2, 3])
 	assert_array(RunManager._target_tiers_for_island(4)).is_equal([3])
+
+# confirm_route：记所选图 + 标记 visited + 转 DEPLOYING。
+func test_confirm_route_records_and_advances() -> void:
+	RunManager.current_island_index = -1
+	var offers := RunManager.get_route_offers()
+	var chosen := (offers[0] as MapDefinition).map_id
+	RunManager.confirm_route(chosen)
+	assert_str(RunManager.get_chosen_map_id()).is_equal(chosen)
+	assert_bool(RunManager._visited_map_ids.has(chosen)).is_true()
+	assert_str(RunManager.current_phase).is_equal("DEPLOYING")
+	assert_int(RunManager._last_route_offers.size()).is_equal(0)
+
+# confirm_route 坏 id（不在本批候选）：push_error 且状态不变、不记图。
+func test_confirm_route_invalid_id_no_change() -> void:
+	RunManager.current_island_index = -1
+	RunManager.get_route_offers()
+	RunManager._set_run_phase(RunManager.RunPhase.RUN_CHARTING)
+	RunManager.confirm_route("battle_map_999_nonexistent")
+	assert_str(RunManager.get_chosen_map_id()).is_equal("")
+	assert_str(RunManager.current_phase).is_equal("CHARTING")
