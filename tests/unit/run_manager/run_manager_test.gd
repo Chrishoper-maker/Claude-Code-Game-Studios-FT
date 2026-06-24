@@ -199,3 +199,12 @@ func test_confirm_deploy_filters_to_selected_ids() -> void:
 	RunManager.confirm_deploy(subset)
 	assert_int(RunManager.get_pending_deploy().size()).is_equal(1)
 	assert_str((RunManager.get_pending_deploy()[0] as CrewDefinition).id).is_equal(all_ids[0])
+
+# CHARTING 门面映射（新增阶段）。
+func test_facade_maps_charting_to_CHARTING() -> void:
+	RunManager._set_run_phase(RunManager.RunPhase.RUN_CHARTING)
+	assert_str(RunManager.current_phase).is_equal("CHARTING")
+
+# CHARTING 字符串解析往返。
+func test_phase_from_string_charting() -> void:
+	assert_int(RunManager._phase_from_string("CHARTING")).is_equal(RunManager.RunPhase.RUN_CHARTING)

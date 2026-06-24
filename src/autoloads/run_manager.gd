@@ -19,6 +19,7 @@ enum RunPhase {
 	RUN_DEPLOYING,
 	RUN_ISLAND_BATTLE,
 	RUN_RECRUITING,
+	RUN_CHARTING,
 	RUN_END
 }
 # ADR-0002 注册契约：current_phase 对外是只读 String。本字典是映射的单一真实来源。
@@ -27,6 +28,7 @@ const _PHASE_TO_STRING: Dictionary = {
 	RunPhase.RUN_DEPLOYING:     "DEPLOYING",
 	RunPhase.RUN_ISLAND_BATTLE: "BATTLE",
 	RunPhase.RUN_RECRUITING:    "RECRUITING",
+	RunPhase.RUN_CHARTING:      "CHARTING",
 	RunPhase.RUN_END:           "RUN_END",
 }
 
@@ -83,6 +85,8 @@ func _on_run_phase_entered(phase: RunPhase) -> void:
 			EventBus.run_phase_changed.emit("BATTLE")
 		RunPhase.RUN_RECRUITING:
 			EventBus.run_phase_changed.emit("RECRUITING")
+		RunPhase.RUN_CHARTING:
+			EventBus.run_phase_changed.emit("CHARTING")
 		RunPhase.RUN_END:
 			EventBus.run_phase_changed.emit("RUN_END")
 		RunPhase.RUN_IDLE:
@@ -90,7 +94,7 @@ func _on_run_phase_entered(phase: RunPhase) -> void:
 	# 航点自动存档（run-save #13）：航点存、终局删；BATTLE/IDLE 不动。
 	if _autosave_enabled:
 		match phase:
-			RunPhase.RUN_DEPLOYING, RunPhase.RUN_RECRUITING:
+			RunPhase.RUN_DEPLOYING, RunPhase.RUN_RECRUITING, RunPhase.RUN_CHARTING:
 				save_run()
 			RunPhase.RUN_END:
 				delete_save()
@@ -323,6 +327,7 @@ func _phase_from_string(s: String) -> RunPhase:
 		"DEPLOYING": return RunPhase.RUN_DEPLOYING
 		"BATTLE": return RunPhase.RUN_ISLAND_BATTLE
 		"RECRUITING": return RunPhase.RUN_RECRUITING
+		"CHARTING": return RunPhase.RUN_CHARTING
 		"RUN_END": return RunPhase.RUN_END
 		_: return RunPhase.RUN_IDLE
 
