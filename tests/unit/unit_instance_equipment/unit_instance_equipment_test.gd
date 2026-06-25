@@ -31,3 +31,25 @@ func test_bonus_clamped_at_zero() -> void:
 	# 即便基值很低也不为负（沿用现有钳零语义）
 	var inst := UnitInstance.from_definition(_crew(), {})
 	assert_int(inst.get_attack_range()).is_greater_equal(0)
+
+# AC-clamp：超大负增量时四个访问器均钳零，不返回负数。
+func test_negative_bonus_clamped_to_zero_all_accessors() -> void:
+	# Arrange — 合成装备：各维度 -100，远超任何基值。
+	var neg_equip := EquipmentDefinition.new()
+	neg_equip.id = "test_neg_eq"
+	neg_equip.display_name = "负增量测试装备"
+	neg_equip.slot = EquipmentDefinition.Slot.ARMOR
+	neg_equip.hp_bonus = -100
+	neg_equip.damage_bonus = -100
+	neg_equip.range_bonus = -100
+	neg_equip.move_bonus = -100
+	var slots := { EquipmentDefinition.Slot.ARMOR: neg_equip }
+
+	# Act
+	var inst := UnitInstance.from_definition(_crew(), slots)
+
+	# Assert — maxi(0, base + bonus) 钳零，所有访问器不得为负。
+	assert_int(inst.get_max_hp()).is_equal(0)
+	assert_int(inst.get_base_damage()).is_equal(0)
+	assert_int(inst.get_attack_range()).is_equal(0)
+	assert_int(inst.get_move_range()).is_equal(0)
