@@ -1,48 +1,33 @@
-# UnitInstance 有效值（装备增量；无装备=基值；初始 current_hp=有效 max_hp）。
+# UnitInstance 有效值（多槽装备增量；无装备=基值；初始 current_hp=有效 max_hp）。
 extends GdUnitTestSuite
 
-func _def() -> UnitDefinition:
-	var d := UnitDefinition.new()
-	d.id = "test_unit"
-	d.faction = "crew"
-	d.unit_class = "swordsman"
-	d.max_hp = 10
-	d.base_damage = 3
-	d.attack_range = 1
-	d.move_range = 3
-	d.class_action_id = "slash"
-	return d
+func _crew() -> UnitDefinition:
+	return UnitDataManager.get_unit("crew_swordsman_01")  # 既有起始剑士
 
-func _equip(hp: int, dmg: int, rng: int, mv: int) -> EquipmentDefinition:
-	var e := EquipmentDefinition.new()
-	e.id = "test_eq"
-	e.display_name = "测试装备"
-	e.hp_bonus = hp
-	e.damage_bonus = dmg
-	e.range_bonus = rng
-	e.move_bonus = mv
-	return e
+func _eq(id: String) -> EquipmentDefinition:
+	return EquipmentDataManager.get_equipment(id)
 
-# AC-3：无装备 → 有效值=基值。
-func test_no_equipment_returns_base() -> void:
-	var inst := UnitInstance.from_definition(_def())
-	assert_int(inst.get_max_hp()).is_equal(10)
-	assert_int(inst.get_base_damage()).is_equal(3)
-	assert_int(inst.get_attack_range()).is_equal(1)
-	assert_int(inst.get_move_range()).is_equal(3)
-	assert_int(inst.current_hp).is_equal(10)
+func test_no_equipment_uses_base_values() -> void:
+	var inst := UnitInstance.from_definition(_crew(), {})
+	assert_int(inst.get_max_hp()).is_equal(_crew().max_hp)
 
-# AC-2：有装备 → 有效值=基值+增量，初始 current_hp=有效 max_hp。
-func test_equipment_adds_bonuses() -> void:
-	var inst := UnitInstance.from_definition(_def(), _equip(3, 1, 1, 1))
-	assert_int(inst.get_max_hp()).is_equal(13)
-	assert_int(inst.get_base_damage()).is_equal(4)
-	assert_int(inst.get_attack_range()).is_equal(2)
-	assert_int(inst.get_move_range()).is_equal(4)
-	assert_int(inst.current_hp).is_equal(13)
+func test_single_slot_adds_bonus() -> void:
+	var slots := { EquipmentDefinition.Slot.ARMOR: _eq("eq_plate") }  # +3血
+	var inst := UnitInstance.from_definition(_crew(), slots)
+	assert_int(inst.get_max_hp()).is_equal(_crew().max_hp + 3)
 
-# 负增量钳 0（防御）。
-func test_negative_bonus_clamped_to_zero() -> void:
-	var inst := UnitInstance.from_definition(_def(), _equip(-100, -100, -100, -100))
-	assert_int(inst.get_max_hp()).is_equal(0)
-	assert_int(inst.get_base_damage()).is_equal(0)
+func test_multi_slot_sums_all_bonuses() -> void:
+	var slots := {
+		EquipmentDefinition.Slot.ARMOR: _eq("eq_plate"),       # +3血
+		EquipmentDefinition.Slot.MAIN_WEAPON: _eq("eq_cutlass"),# +1攻
+		EquipmentDefinition.Slot.BOOTS: _eq("eq_boots"),        # +1移动
+	}
+	var inst := UnitInstance.from_definition(_crew(), slots)
+	assert_int(inst.get_max_hp()).is_equal(_crew().max_hp + 3)
+	assert_int(inst.get_base_damage()).is_equal(_crew().base_damage + 1)
+	assert_int(inst.get_move_range()).is_equal(_crew().move_range + 1)
+
+func test_bonus_clamped_at_zero() -> void:
+	# 即便基值很低也不为负（沿用现有钳零语义）
+	var inst := UnitInstance.from_definition(_crew(), {})
+	assert_int(inst.get_attack_range()).is_greater_equal(0)

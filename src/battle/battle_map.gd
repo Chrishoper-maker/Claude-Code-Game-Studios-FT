@@ -69,8 +69,8 @@ func deploy_crew(crew_defs: Array, positions: Array, equipments: Array = []) -> 
 		if not _grid_board.is_empty(pos):
 			return false
 	for i in crew_defs.size():
-		var eq: EquipmentDefinition = null
-		if i < equipments.size():
+		var eq: Dictionary = {}
+		if i < equipments.size() and equipments[i] is Dictionary:
 			eq = equipments[i]
 		var inst := UnitInstance.from_definition(crew_defs[i], eq)
 		inst.grid_position = positions[i]

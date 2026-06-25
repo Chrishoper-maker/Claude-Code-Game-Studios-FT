@@ -16,10 +16,11 @@ var has_used_verb: bool
 var is_alive: bool
 var behavior_type: String               # 部署时由 BattleMap 写入（敌方行为原型）
 var home_pos: Vector2i                   # GUARDIAN 守位锚点；非守卫型为哨兵
-var equipment: EquipmentDefinition = null   # 携带装备（仅 crew；敌方/无装备为 null）
+var equipment: Dictionary = {}   # slot(int) → EquipmentDefinition（仅 crew；敌方/无装备为空）
 
 # 由模板生成运行时实例（unit-data-system 第5节 + 初始化规则）。
-static func from_definition(def: UnitDefinition, equipment: EquipmentDefinition = null) -> UnitInstance:
+# equipment 为 {slot:int → EquipmentDefinition}，默认空。
+static func from_definition(def: UnitDefinition, equipment: Dictionary = {}) -> UnitInstance:
 	var inst := UnitInstance.new()
 	inst.definition = def
 	inst.equipment = equipment
@@ -38,15 +39,24 @@ static func from_definition(def: UnitDefinition, equipment: EquipmentDefinition 
 func get_unit_id() -> String:
 	return definition.id
 
+# 所有已装槽某增量字段之和（hp_bonus/damage_bonus/range_bonus/move_bonus）。
+func _equipment_bonus(field: String) -> int:
+	var total := 0
+	for s in equipment:
+		var eq: EquipmentDefinition = equipment[s]
+		if eq != null:
+			total += int(eq.get(field))
+	return total
+
 # ── 有效值（基值 + 装备增量，下限钳 0）。战斗逻辑应读这些而非 definition.X ──
 func get_max_hp() -> int:
-	return maxi(0, definition.max_hp + (equipment.hp_bonus if equipment != null else 0))
+	return maxi(0, definition.max_hp + _equipment_bonus("hp_bonus"))
 
 func get_base_damage() -> int:
-	return maxi(0, definition.base_damage + (equipment.damage_bonus if equipment != null else 0))
+	return maxi(0, definition.base_damage + _equipment_bonus("damage_bonus"))
 
 func get_attack_range() -> int:
-	return maxi(0, definition.attack_range + (equipment.range_bonus if equipment != null else 0))
+	return maxi(0, definition.attack_range + _equipment_bonus("range_bonus"))
 
 func get_move_range() -> int:
-	return maxi(0, definition.move_range + (equipment.move_bonus if equipment != null else 0))
+	return maxi(0, definition.move_range + _equipment_bonus("move_bonus"))

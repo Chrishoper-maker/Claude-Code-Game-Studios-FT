@@ -54,7 +54,7 @@ var _last_offers: Array[String] = []             # 本批候选 unit_id（confir
 var _chosen_map_id: String = ""             # 本次选航选定的 map_id（battle_map.load_map 读）
 var _visited_map_ids: Array[String] = []     # 本 run 已访问 map_id（选航不重复）
 var _last_route_offers: Array[String] = []   # 本批选航候选 map_id（confirm_route 据此校验）
-var _roster_equipment: Dictionary = {}   # crew_id → equipment_id（已招船员持有的装备）
+var _roster_equipment: Dictionary = {}   # crew_id → { slot:int → equipment_id }（已招船员持有的装备）
 var _offer_equipment: Dictionary = {}    # crew_id → equipment_id（本批候选滚到的装备）
 var _rng: RandomNumberGenerator = RandomNumberGenerator.new()  # 招募抽样（测试可 seed；断言不变量）
 var _save_path: String = "user://run.json"        # 进行中 run 存档路径（测试可注入）
@@ -244,7 +244,9 @@ func confirm_recruit(unit_id: String) -> void:
 		roster.append(def as CrewDefinition)
 		var picked_eid := str(_offer_equipment.get(unit_id, ""))
 		if picked_eid != "":
-			_roster_equipment[unit_id] = picked_eid
+			var edef := EquipmentDataManager.get_equipment(picked_eid)
+			if edef != null:
+				_roster_equipment[unit_id] = { edef.slot: picked_eid }
 	else:
 		push_error("RunManager.confirm_recruit: unit_id 非 CrewDefinition 或不存在 — %s" % unit_id)
 	for offered_id in _last_offers:
@@ -321,12 +323,17 @@ func get_offer_equipment(crew_id: String) -> EquipmentDefinition:
 		return null
 	return EquipmentDataManager.get_equipment(eid)
 
-# 已招船员 crew_id 持有的装备（部署/战斗用）；无则 null。
-func get_equipment_for(crew_id: String) -> EquipmentDefinition:
-	var eid := str(_roster_equipment.get(crew_id, ""))
-	if eid == "":
-		return null
-	return EquipmentDataManager.get_equipment(eid)
+# 已招船员 crew_id 持有的装备（部署/战斗用）；返回 {slot:int → EquipmentDefinition}，无则空 {}。
+func get_equipment_for(crew_id: String) -> Dictionary:
+	var out: Dictionary = {}
+	var slots: Variant = _roster_equipment.get(crew_id, {})
+	if slots is Dictionary:
+		for s in (slots as Dictionary):
+			var eid := str((slots as Dictionary)[s])
+			var def := EquipmentDataManager.get_equipment(eid)
+			if def != null:
+				out[int(s)] = def
+	return out
 
 # ── 存档（run-save #13）──
 
@@ -350,7 +357,7 @@ func to_save_dict() -> Dictionary:
 		"excluded_offers": _excluded_offers.duplicate(),
 		"last_offers": _last_offers.duplicate(),
 		"rng_state": str(_rng.state),
-		"roster_equipment": _roster_equipment.duplicate(),
+		"roster_equipment": _roster_equipment.duplicate(true),
 		"chosen_map_id": _chosen_map_id,
 		"visited_map_ids": _visited_map_ids.duplicate(),
 		"last_route_offers": _last_route_offers.duplicate(),
@@ -379,7 +386,8 @@ func load_from_save_dict(d: Dictionary) -> void:
 	_last_route_offers = _to_string_array(d.get("last_route_offers", []))
 	_phase = _phase_from_string(str(d.get("phase", "IDLE")))
 	_rng.state = int(str(d.get("rng_state", "0")))
-	# 装备账本恢复：仅保留 crew 仍在 roster、且 equipment 有定义的条目（缺失优雅跳过）。
+	# 装备账本恢复：仅保留 crew 仍在 roster 的条目（缺失定义优雅跳过）。
+	# 支持新嵌套格式 {slot:int → eid} 与旧扁平格式 {crew_id → eid}（旧档迁移）。
 	_roster_equipment.clear()
 	var roster_id_set: Dictionary = {}
 	for c in roster:
@@ -388,9 +396,23 @@ func load_from_save_dict(d: Dictionary) -> void:
 	if re is Dictionary:
 		for k in (re as Dictionary):
 			var cid := str(k)
-			var eid := str((re as Dictionary)[k])
-			if roster_id_set.has(cid) and EquipmentDataManager.get_equipment(eid) != null:
-				_roster_equipment[cid] = eid
+			if not roster_id_set.has(cid):
+				continue
+			var val: Variant = (re as Dictionary)[k]
+			var slots: Dictionary = {}
+			if val is Dictionary:
+				for s in (val as Dictionary):
+					var eid := str((val as Dictionary)[s])
+					if EquipmentDataManager.get_equipment(eid) != null:
+						slots[int(s)] = eid
+			else:
+				# 旧档迁移：单 eid → 按其 slot 放入
+				var eid := str(val)
+				var edef := EquipmentDataManager.get_equipment(eid)
+				if edef != null:
+					slots[edef.slot] = eid
+			if not slots.is_empty():
+				_roster_equipment[cid] = slots
 
 func _to_string_array(v: Variant) -> Array[String]:
 	var out: Array[String] = []

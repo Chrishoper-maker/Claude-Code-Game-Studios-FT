@@ -89,7 +89,8 @@ func test_deploy_crew_with_equipment_applies_stat_bonus() -> void:
 	var plate: EquipmentDefinition = EquipmentDataManager.get_equipment("eq_plate")
 	var crew: CrewDefinition = _crew_def("bulwark", 12)
 
-	var ok := bm.deploy_crew([crew], [Vector2i(0, 6)], [plate])
+	var eq_dict := { EquipmentDefinition.Slot.ARMOR: plate }
+	var ok := bm.deploy_crew([crew], [Vector2i(0, 6)], [eq_dict])
 	assert_bool(ok).is_true()
 
 	var allies: Array = tm.get_alive_allies()

@@ -1,4 +1,4 @@
-# 装备账本进存档：to_save_dict→load 往返恢复；load 缺失 equip id 跳过。
+# 装备账本进存档：to_save_dict→load 往返恢复（嵌套格式）；旧档扁平 id 迁移；缺失 equip id 跳过。
 extends GdUnitTestSuite
 
 func before_test() -> void:
@@ -12,26 +12,39 @@ func after_test() -> void:
 	RunManager._goto_battle = RunManager._default_goto_battle
 	RunManager._goto_route  = RunManager._default_goto_route
 
-# AC-8：roster_equipment 往返恢复。
-func test_roster_equipment_roundtrip() -> void:
-	var offers := RunManager.get_recruit_offers()
-	var chosen: String = offers[0].id
-	RunManager.confirm_recruit(chosen)
-	var eq_before := RunManager.get_equipment_for(chosen)
-	var d := RunManager.to_save_dict()
-	RunManager.start_run()                 # 打乱清账本
-	RunManager.load_from_save_dict(d)
-	var eq_after := RunManager.get_equipment_for(chosen)
-	assert_bool(eq_after != null).is_true()
-	assert_str(eq_after.id).is_equal(eq_before.id)
+# 嵌套装备账本往返恢复（两个槽都保存还原）。
+func test_nested_roster_equipment_roundtrips() -> void:
+	var rm := RunManager
+	rm.start_run()
+	var crew_id := rm.roster[0].id
+	rm._roster_equipment = { crew_id: { EquipmentDefinition.Slot.ARMOR: "eq_plate", EquipmentDefinition.Slot.MAIN_WEAPON: "eq_cutlass" } }
+	var d := rm.to_save_dict()
+	rm._roster_equipment = {}
+	rm.load_from_save_dict(d)
+	var slots: Dictionary = rm._roster_equipment[crew_id]
+	assert_int(slots.size()).is_equal(2)
+	assert_str(str(slots[EquipmentDefinition.Slot.ARMOR])).is_equal("eq_plate")
 
-# AC-8：load 缺失 equipment id → 该条目跳过、不崩。
-func test_load_skips_missing_equipment_id() -> void:
-	var d := {
-		"roster": ["crew_swordsman_01"],
-		"island_index": 0,
-		"phase": "DEPLOYING",
-		"roster_equipment": {"crew_swordsman_01": "eq_nonexistent_zzz"},
-	}
-	RunManager.load_from_save_dict(d)
-	assert_object(RunManager.get_equipment_for("crew_swordsman_01")).is_null()
+# 旧档扁平 id 格式迁移 → 按装备 slot 放入。
+func test_legacy_flat_id_migrates_to_slot() -> void:
+	var rm := RunManager
+	rm.start_run()
+	var crew_id := rm.roster[0].id
+	# 旧档：roster_equipment 为 crew_id → 单 eid
+	var legacy := rm.to_save_dict()
+	legacy["roster_equipment"] = { crew_id: "eq_boots" }   # 旧扁平格式
+	rm._roster_equipment = {}
+	rm.load_from_save_dict(legacy)
+	var slots: Dictionary = rm._roster_equipment[crew_id]
+	assert_str(str(slots[EquipmentDefinition.Slot.BOOTS])).is_equal("eq_boots")
+
+# 缺失装备定义 → 该条目跳过、不崩。
+func test_missing_definition_dropped() -> void:
+	var rm := RunManager
+	rm.start_run()
+	var crew_id := rm.roster[0].id
+	var d := rm.to_save_dict()
+	d["roster_equipment"] = { crew_id: { EquipmentDefinition.Slot.ARMOR: "eq_does_not_exist" } }
+	rm._roster_equipment = {}
+	rm.load_from_save_dict(d)
+	assert_bool(rm._roster_equipment.has(crew_id)).is_false()
