@@ -136,12 +136,13 @@ func _on_notice_continue(next: Callable) -> void:
 	_clear_ui()
 	next.call()
 
-# 三选一招募卡。候选为空 → 跳过招募直接进入部署。
+# 三选一招募卡。候选为空 → 跳过招募直接进入部署。卡只显示船员信息，装备在下一步选。
 func _show_recruit_offers() -> void:
 	var offers := RunManager.get_recruit_offers()
 	if offers.is_empty():
 		_enter_deploy()
 		return
+	_clear_ui()
 	_active_screen = "recruit"
 	var box := VBoxContainer.new()
 	box.set_anchors_preset(Control.PRESET_CENTER)
@@ -152,14 +153,54 @@ func _show_recruit_offers() -> void:
 	for o in offers:
 		var crew := o as CrewDefinition
 		var btn := Button.new()
-		# Task 5 will replace with roll_recruit_equipment() pick UI; equipment display deferred.
 		btn.text = "%s · %s · %s" % [crew.unit_class, crew.display_name, crew.battle_cry]
 		btn.pressed.connect(_on_recruit_chosen.bind(crew.id))
 		box.add_child(btn)
 
 func _on_recruit_chosen(unit_id: String) -> void:
-	RunManager.confirm_recruit(unit_id)
-	_show_route_offers()
+	_show_equip_picks(unit_id)
+
+# 滚 8 选 2 白盒页：8 件 toggle，最多选 2 且不同槽，确认装上 → 选航。
+func _show_equip_picks(unit_id: String) -> void:
+	_clear_ui()
+	_active_screen = "equip_picks"
+	var rolled := RunManager.roll_recruit_equipment()
+	var selected: Array[String] = []        # 选中 eid
+	var selected_slots: Dictionary = {}      # slot → true
+	var box := VBoxContainer.new()
+	box.set_anchors_preset(Control.PRESET_CENTER)
+	add_child(box)
+	var title := Label.new()
+	title.text = "为新船员选择 2 件装备（已选 0/2）"
+	box.add_child(title)
+	var confirm := Button.new()
+	confirm.text = "确认装备"
+	confirm.disabled = true
+	var toggles: Array[Button] = []
+	for eq in rolled:
+		var b := Button.new()
+		b.toggle_mode = true
+		b.text = _equipment_summary(eq)
+		b.toggled.connect(func(pressed: bool) -> void:
+			if pressed:
+				if selected.size() >= 2 or selected_slots.has(eq.slot):
+					b.set_pressed_no_signal(false)   # 满 2 或同槽：禁选
+					return
+				selected.append(eq.id)
+				selected_slots[eq.slot] = true
+			else:
+				selected.erase(eq.id)
+				selected_slots.erase(eq.slot)
+			title.text = "为新船员选择 2 件装备（已选 %d/2）" % selected.size()
+			confirm.disabled = selected.size() == 0
+		)
+		toggles.append(b)
+		box.add_child(b)
+	confirm.pressed.connect(func() -> void:
+		RunManager.confirm_recruit(unit_id, selected)
+		_show_route_offers()
+	)
+	box.add_child(confirm)
 
 # 选航界面（白盒，只用按钮）：3 张目的地卡，显示「地名 · 难度N · 敌情摘要」。
 func _show_route_offers() -> void:
@@ -199,7 +240,9 @@ func _enemy_summary(map_def: MapDefinition) -> String:
 			parts.append("%s×%d" % [labels[k], int(counts[k])])
 	return " ".join(parts)
 
-# 装备白盒摘要："名 +N攻 +N血 ..."（仅列非零增量）。
+# 装备白盒摘要："名（品阶）+N攻 +N血 ..."（仅列非零增量）。
+const _RARITY_LABELS := ["普通", "稀有", "史诗", "稀世", "传奇"]
+
 func _equipment_summary(eq: EquipmentDefinition) -> String:
 	var parts: Array[String] = []
 	if eq.hp_bonus != 0:
@@ -210,7 +253,8 @@ func _equipment_summary(eq: EquipmentDefinition) -> String:
 		parts.append("%+d射程" % eq.range_bonus)
 	if eq.move_bonus != 0:
 		parts.append("%+d移动" % eq.move_bonus)
-	return "%s %s" % [eq.display_name, " ".join(parts)]
+	var rlabel: String = _RARITY_LABELS[clampi(eq.rarity, 0, 4)]
+	return "%s（%s）%s" % [eq.display_name, rlabel, " ".join(parts)]
 
 # run-end：结果 + 运行总结（抵达岛数 / 幸存 / 本航阵亡）+ 重新出航。
 func _show_run_end() -> void:
