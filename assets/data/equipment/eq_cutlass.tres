@@ -10,3 +10,6 @@ hp_bonus = 0
 damage_bonus = 1
 range_bonus = 0
 move_bonus = 0
+rarity = 0
+slot = 0
+set_id = ""
