@@ -176,7 +176,6 @@ func _show_equip_picks(unit_id: String) -> void:
 	var confirm := Button.new()
 	confirm.text = "确认装备"
 	confirm.disabled = true
-	var toggles: Array[Button] = []
 	for eq in rolled:
 		var b := Button.new()
 		b.toggle_mode = true
@@ -192,9 +191,8 @@ func _show_equip_picks(unit_id: String) -> void:
 				selected.erase(eq.id)
 				selected_slots.erase(eq.slot)
 			title.text = "为新船员选择 2 件装备（已选 %d/2）" % selected.size()
-			confirm.disabled = selected.size() == 0
+			confirm.disabled = selected.size() < 2   # 必须恰好选 2 件
 		)
-		toggles.append(b)
 		box.add_child(b)
 	confirm.pressed.connect(func() -> void:
 		RunManager.confirm_recruit(unit_id, selected)
