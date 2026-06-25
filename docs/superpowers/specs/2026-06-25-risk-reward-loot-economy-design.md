@@ -1,6 +1,12 @@
 # 风险↔回报奖励经济（子项目②）设计
 
-> Story: risk-reward-loot-economy（多地图/遭遇 epic 子项目②）
+> **⚠️ SUPERSEDED（2026-06-25）**：本方案假设「3 级稀有度 + 一人一件、替换即弃」。
+> 用户随后把装备系统扩展为 **9 固定槽 + 5 级稀有度 + 套装效果（3/6/9 阈值）**。
+> ② 已重新拆分为 ②a 装备地基重构 → ②c 风险回报战利品经济 → ②b 套装效果，
+> 顺序 ②a→②c→②b。本文档保留作历史记录，**不再据此实现**。
+> 当前生效地基设计见 `2026-06-25-equipment-slots-rarity-foundation-design.md`（②a）。
+
+> Story: risk-reward-loot-economy（多地图/遭遇 epic 子项目②，已 superseded）
 > 日期：2026-06-25
 > 引擎：Godot 4.6.3 / GDScript / GdUnit4
 > 前置：子项目①海图选航骨架（`2026-06-24-chart-course-multi-map-design.md`，已完成 push 5721a8b）
