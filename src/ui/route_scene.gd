@@ -152,9 +152,8 @@ func _show_recruit_offers() -> void:
 	for o in offers:
 		var crew := o as CrewDefinition
 		var btn := Button.new()
-		var eq := RunManager.get_offer_equipment(crew.id)
-		var eq_text := ("" if eq == null else " · " + _equipment_summary(eq))
-		btn.text = "%s · %s · %s%s" % [crew.unit_class, crew.display_name, crew.battle_cry, eq_text]
+		# Task 5 will replace with roll_recruit_equipment() pick UI; equipment display deferred.
+		btn.text = "%s · %s · %s" % [crew.unit_class, crew.display_name, crew.battle_cry]
 		btn.pressed.connect(_on_recruit_chosen.bind(crew.id))
 		box.add_child(btn)
 

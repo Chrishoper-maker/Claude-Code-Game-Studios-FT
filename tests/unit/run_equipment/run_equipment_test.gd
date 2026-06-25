@@ -13,38 +13,38 @@ func after_test() -> void:
 	RunManager._goto_battle = RunManager._default_goto_battle
 	RunManager._goto_route  = RunManager._default_goto_route
 
-# AC-4：固定 seed 下，offer 装备确定可复现。
-func test_offer_equipment_deterministic() -> void:
-	RunManager._rng.seed = 777
-	var offers_a := RunManager.get_recruit_offers()
-	var first_id: String = offers_a[0].id
-	var eq_a := RunManager.get_offer_equipment(first_id)
-	RunManager._rng.seed = 777
-	RunManager.get_recruit_offers()
-	var eq_b := RunManager.get_offer_equipment(first_id)
-	assert_bool(eq_a != null).is_true()
-	assert_str(eq_a.id).is_equal(eq_b.id)
+# AC-5：confirm_recruit with equip_picks records equipment in roster by slot.
+func test_confirm_recruit_assigns_two_picks_to_slots() -> void:
+	var rm := RunManager
+	rm._autosave_enabled = false
+	rm.start_run()
+	var offers := rm.get_recruit_offers()
+	var crew_id := offers[0].id
+	# 选两件不同槽：弯刀(主武器) + 板甲(护甲)
+	rm.confirm_recruit(crew_id, ["eq_cutlass", "eq_plate"])
+	var slots := rm.get_equipment_for(crew_id)
+	assert_int(slots.size()).is_equal(2)
+	assert_str(slots[EquipmentDefinition.Slot.MAIN_WEAPON].id).is_equal("eq_cutlass")
+	assert_str(slots[EquipmentDefinition.Slot.ARMOR].id).is_equal("eq_plate")
 
-# AC-5：confirm_recruit 后 get_equipment_for 返回包含招募时滚到的装备的字典。
-func test_confirm_recruit_records_equipment() -> void:
-	var offers := RunManager.get_recruit_offers()
-	var chosen: String = offers[0].id
-	var offered_eq := RunManager.get_offer_equipment(chosen)
-	RunManager.confirm_recruit(chosen)
-	var held: Dictionary = RunManager.get_equipment_for(chosen)
-	assert_bool(held.is_empty()).is_false()
-	# 字典中应该有一个槽装备，值为招募时 offer 的装备
-	var found_eq: EquipmentDefinition = null
-	for s in held:
-		found_eq = held[s]
-	assert_bool(found_eq != null).is_true()
-	assert_str(found_eq.id).is_equal(offered_eq.id)
+# confirm_recruit 两件同槽时仅第一件生效（第二件 push_error 后忽略）。
+func test_confirm_recruit_same_slot_keeps_first_only() -> void:
+	var rm := RunManager
+	rm._autosave_enabled = false
+	rm.start_run()
+	var offers := rm.get_recruit_offers()
+	var crew_id := offers[0].id
+	# 两件同为主武器：仅第一件生效
+	rm.confirm_recruit(crew_id, ["eq_cutlass", "eq_sabre"])
+	var slots := rm.get_equipment_for(crew_id)
+	assert_int(slots.size()).is_equal(1)
+	assert_str(slots[EquipmentDefinition.Slot.MAIN_WEAPON].id).is_equal("eq_cutlass")
 
 # AC-6：permadeath 后 get_equipment_for 返回空字典。
 func test_permadeath_clears_equipment() -> void:
 	var offers := RunManager.get_recruit_offers()
 	var chosen: String = offers[0].id
-	RunManager.confirm_recruit(chosen)
+	RunManager.confirm_recruit(chosen, ["eq_cutlass"])
 	RunManager._on_crew_member_downed(chosen)
 	assert_int(RunManager.get_equipment_for(chosen).size()).is_equal(0)
 
@@ -66,3 +66,10 @@ func test_get_equipment_for_returns_slot_dict() -> void:
 func test_get_equipment_for_missing_crew_returns_empty() -> void:
 	RunManager._roster_equipment = {}
 	assert_int(RunManager.get_equipment_for("nobody").size()).is_equal(0)
+
+# confirm_recruit 无装备选择时 get_equipment_for 返回空（默认行为向后兼容）。
+func test_confirm_recruit_no_picks_gives_empty_equipment() -> void:
+	var offers := RunManager.get_recruit_offers()
+	var chosen: String = offers[0].id
+	RunManager.confirm_recruit(chosen)
+	assert_int(RunManager.get_equipment_for(chosen).size()).is_equal(0)

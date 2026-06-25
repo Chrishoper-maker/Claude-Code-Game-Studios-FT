@@ -1,4 +1,5 @@
-# 招募卡文字含候选装备名（AC-9）。直驱 RECRUITING 分支（设 _phase）。
+# 招募卡文字（AC-9 已迁移到 Task 5 新 roll-8-pick-2 UI）。
+# Task 4 起：get_offer_equipment 已删除；招募卡仅显示职业/名字/口号（装备摘要留 Task 5）。
 extends GdUnitTestSuite
 
 func before_test() -> void:
@@ -23,19 +24,19 @@ func _all_button_texts(node: Node) -> Array[String]:
 		out.append_array(_all_button_texts(child))
 	return out
 
-# AC-9：至少一张招募卡文字含其装备的 display_name。
-func test_recruit_card_shows_equipment_name() -> void:
+# AC-9（Task 4 stub）：招募卡按钮文字含候选 display_name（装备摘要延至 Task 5）。
+func test_recruit_card_shows_crew_name() -> void:
 	var route: RouteScene = auto_free(RouteScene.new())
 	add_child(route)   # _ready → RECRUITING → _show_recruit_offers（无阵亡，直通）
 	assert_str(route._active_screen).is_equal("recruit")
 	var texts := _all_button_texts(route)
-	# 本批某候选的装备名应出现在某张卡文字中。
+	# 本批候选的 display_name 应出现在某张卡文字中。
 	var found := false
 	for o in RunManager._last_offers:
-		var eq := RunManager.get_offer_equipment(o)
-		if eq == null:
+		var def := UnitDataManager.get_unit(o)
+		if def == null:
 			continue
 		for t in texts:
-			if t.contains(eq.display_name):
+			if t.contains((def as CrewDefinition).display_name):
 				found = true
 	assert_bool(found).is_true()

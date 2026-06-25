@@ -13,6 +13,11 @@ const RECRUIT_OFFER_COUNT := 3
 const ROUTE_OFFER_COUNT := 3
 const ISLAND_COUNT_MAX := 5
 const DEPLOY_LIMIT := 4
+const RECRUIT_EQUIP_ROLL := 8
+const RECRUIT_EQUIP_PICK := 2
+const SAME_SLOT_CAP := 2
+# 招募滚装稀有度权重（百分比）；键为 Rarity 枚举值。
+const _RARITY_WEIGHTS := { 4: 2, 3: 8, 2: 15, 1: 25, 0: 50 }
 
 # ── 状态机（ADR-0004）──
 enum RunPhase {
@@ -55,7 +60,7 @@ var _chosen_map_id: String = ""             # 本次选航选定的 map_id（bat
 var _visited_map_ids: Array[String] = []     # 本 run 已访问 map_id（选航不重复）
 var _last_route_offers: Array[String] = []   # 本批选航候选 map_id（confirm_route 据此校验）
 var _roster_equipment: Dictionary = {}   # crew_id → { slot:int → equipment_id }（已招船员持有的装备）
-var _offer_equipment: Dictionary = {}    # crew_id → equipment_id（本批候选滚到的装备）
+var _pending_recruit_equip: Array[String] = []   # 本次招募滚出的 8 件 eid（玩家从中选 2）
 var _rng: RandomNumberGenerator = RandomNumberGenerator.new()  # 招募抽样（测试可 seed；断言不变量）
 var _save_path: String = "user://run.json"        # 进行中 run 存档路径（测试可注入）
 var _autosave_enabled: bool = true                 # 航点自动存档开关（Task 2 钩子读取；测试关）
@@ -111,7 +116,7 @@ func start_run() -> void:
 	_excluded_offers.clear()
 	_last_offers.clear()
 	_roster_equipment.clear()
-	_offer_equipment.clear()
+	_pending_recruit_equip.clear()
 	pending_deploy.clear()
 	_downed_this_run.clear()
 	_downed_pending_notice.clear()
@@ -163,14 +168,51 @@ func get_recruit_offers() -> Array[CrewDefinition]:
 	_last_offers.clear()
 	for o in offers:
 		_last_offers.append(o.id)
-	# 为每名候选随机滚一件装备（有放回；池空则不滚）。_rng 顺序确定 → 存档可复现。
-	_offer_equipment.clear()
-	var equip_pool := EquipmentDataManager.get_all_equipment()
-	if not equip_pool.is_empty():
-		for crew in offers:
-			var pick := equip_pool[_rng.randi_range(0, equip_pool.size() - 1)]
-			_offer_equipment[crew.id] = pick.id
 	return offers
+
+# 按权重抽一个稀有度（高→低累计）。
+func _roll_rarity() -> int:
+	var total := 0
+	for r in _RARITY_WEIGHTS:
+		total += int(_RARITY_WEIGHTS[r])
+	var roll := _rng.randi_range(1, total)
+	var acc := 0
+	for r in [4, 3, 2, 1, 0]:
+		acc += int(_RARITY_WEIGHTS[r])
+		if roll <= acc:
+			return r
+	return 0
+
+# 某稀有度子池；空则降级到相邻较低稀有度，直至非空或耗尽。
+func _equip_subpool(rarity: int) -> Array[EquipmentDefinition]:
+	var r := rarity
+	while r >= 0:
+		var sub := EquipmentDataManager.get_equipment_by_rarity(r)
+		if not sub.is_empty():
+			return sub
+		r -= 1
+	return []
+
+# 招募滚 8 件：权重稀有度 + 同槽≤2。写 _pending_recruit_equip，返回定义数组（UI 用）。
+func roll_recruit_equipment() -> Array[EquipmentDefinition]:
+	_pending_recruit_equip.clear()
+	var result: Array[EquipmentDefinition] = []
+	var slot_counts: Dictionary = {}
+	var attempts := 0
+	var max_attempts := RECRUIT_EQUIP_ROLL * 30
+	while result.size() < RECRUIT_EQUIP_ROLL and attempts < max_attempts:
+		attempts += 1
+		var sub := _equip_subpool(_roll_rarity())
+		if sub.is_empty():
+			break
+		var pick := sub[_rng.randi_range(0, sub.size() - 1)]
+		var sc := int(slot_counts.get(pick.slot, 0))
+		if sc >= SAME_SLOT_CAP:
+			continue   # 同槽触顶，重滚
+		slot_counts[pick.slot] = sc + 1
+		result.append(pick)
+		_pending_recruit_equip.append(pick.id)
+	return result
 
 # 即将抵达岛号 → 目标 island_tier 集合（可调）。next_idx = current_island_index + 1。
 func _target_tiers_for_island(next_idx: int) -> Array[int]:
@@ -237,23 +279,30 @@ func confirm_route(map_id: String) -> void:
 func get_chosen_map_id() -> String:
 	return _chosen_map_id
 
-# 选中候选加入 roster；本批其余候选进 _excluded_offers（本 run 不再 offer）；→DEPLOYING。
-func confirm_recruit(unit_id: String) -> void:
+# 选中候选加入 roster；equip_picks 为玩家选的 eid 数组（限不同槽，越界/同槽忽略）。→CHARTING。
+func confirm_recruit(unit_id: String, equip_picks: Array = []) -> void:
 	var def := UnitDataManager.get_unit(unit_id)
 	if def is CrewDefinition:
 		roster.append(def as CrewDefinition)
-		var picked_eid := str(_offer_equipment.get(unit_id, ""))
-		if picked_eid != "":
-			var edef := EquipmentDataManager.get_equipment(picked_eid)
-			if edef != null:
-				_roster_equipment[unit_id] = { edef.slot: picked_eid }
+		var slots: Dictionary = {}
+		for raw in equip_picks:
+			var eid := str(raw)
+			var edef := EquipmentDataManager.get_equipment(eid)
+			if edef == null:
+				continue
+			if slots.has(edef.slot):
+				push_error("RunManager.confirm_recruit: 两件装备同槽，忽略第二件 — %s" % eid)
+				continue
+			slots[edef.slot] = eid
+		if not slots.is_empty():
+			_roster_equipment[unit_id] = slots
 	else:
 		push_error("RunManager.confirm_recruit: unit_id 非 CrewDefinition 或不存在 — %s" % unit_id)
 	for offered_id in _last_offers:
 		if offered_id != unit_id and not _excluded_offers.has(offered_id):
 			_excluded_offers.append(offered_id)
 	_last_offers.clear()
-	_offer_equipment.clear()
+	_pending_recruit_equip.clear()
 	_set_run_phase(RunPhase.RUN_CHARTING)
 
 # 部署确认 → 进入战斗（ADR-0002 场景切换序列）。pending_deploy = roster 中被选 id 的 defs。
@@ -315,13 +364,6 @@ func get_downed_this_run() -> Array[String]:
 # 本航新解锁的悬赏船员持久 id（run-end 展示用）；无则 ""。
 func get_unlocked_this_run() -> String:
 	return _unlocked_this_run
-
-# 本批候选 crew_id 滚到的装备（招募卡 UI 用）；无则 null。
-func get_offer_equipment(crew_id: String) -> EquipmentDefinition:
-	var eid := str(_offer_equipment.get(crew_id, ""))
-	if eid == "":
-		return null
-	return EquipmentDataManager.get_equipment(eid)
 
 # 已招船员 crew_id 持有的装备（部署/战斗用）；返回 {slot:int → EquipmentDefinition}，无则空 {}。
 func get_equipment_for(crew_id: String) -> Dictionary:
