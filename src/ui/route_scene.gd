@@ -158,47 +158,24 @@ func _show_recruit_offers() -> void:
 		box.add_child(btn)
 
 func _on_recruit_chosen(unit_id: String) -> void:
-	_show_equip_picks(unit_id)
+	RunManager.confirm_recruit(unit_id)
+	_show_recruit_grant_notice(unit_id)
 
-# 滚 8 选 2 白盒页：8 件 toggle，最多选 2 且不同槽，确认装上 → 选航。
-func _show_equip_picks(unit_id: String) -> void:
+# 招募直发通知：列出新船员获得的 3 件 + 纸娃娃 → 继续进选航。
+func _show_recruit_grant_notice(unit_id: String) -> void:
 	_clear_ui()
-	_active_screen = "equip_picks"
-	var rolled := RunManager.roll_recruit_equipment()
-	var selected: Array[String] = []        # 选中 eid
-	var selected_slots: Dictionary = {}      # slot → true
+	_active_screen = "recruit_grant"
 	var box := VBoxContainer.new()
-	box.set_anchors_preset(Control.PRESET_CENTER)
 	add_child(box)
+	box.set_anchors_preset(Control.PRESET_CENTER)
 	var title := Label.new()
-	title.text = "为新船员选择 2 件装备（已选 0/2）"
+	title.text = "新船员入队，获得 3 件装备"
 	box.add_child(title)
-	var confirm := Button.new()
-	confirm.text = "确认装备"
-	confirm.disabled = true
-	for eq in rolled:
-		var b := Button.new()
-		b.toggle_mode = true
-		b.text = _equipment_summary(eq)
-		b.toggled.connect(func(pressed: bool) -> void:
-			if pressed:
-				if selected.size() >= 2 or selected_slots.has(eq.slot):
-					b.set_pressed_no_signal(false)   # 满 2 或同槽：禁选
-					return
-				selected.append(eq.id)
-				selected_slots[eq.slot] = true
-			else:
-				selected.erase(eq.id)
-				selected_slots.erase(eq.slot)
-			title.text = "为新船员选择 2 件装备（已选 %d/2）" % selected.size()
-			confirm.disabled = selected.size() < 2   # 必须恰好选 2 件
-		)
-		box.add_child(b)
-	confirm.pressed.connect(func() -> void:
-		RunManager.confirm_recruit(unit_id, selected)
-		_show_route_offers()
-	)
-	box.add_child(confirm)
+	box.add_child(_build_paperdoll(unit_id))
+	var cont := Button.new()
+	cont.text = "继续"
+	cont.pressed.connect(_show_route_offers)
+	box.add_child(cont)
 
 # 选航界面（白盒，只用按钮）：3 张目的地卡，显示「地名 · 难度N · 敌情摘要」。
 func _show_route_offers() -> void:
@@ -240,6 +217,7 @@ func _enemy_summary(map_def: MapDefinition) -> String:
 
 # 装备白盒摘要："名（品阶）+N攻 +N血 ..."（仅列非零增量）。
 const _RARITY_LABELS := ["普通", "稀有", "史诗", "稀世", "传奇"]
+const _SLOT_NOUNS := ["主武器","副武器","头","护甲","手","腿","靴","戒指","项链"]
 
 func _equipment_summary(eq: EquipmentDefinition) -> String:
 	var parts: Array[String] = []
@@ -301,3 +279,14 @@ func _show_run_end() -> void:
 func _on_restart_pressed() -> void:
 	RunManager.start_run()
 	_show_route_offers()
+
+# 纸娃娃（Task 8 完整实现；此处临时最小版，Task 8 覆盖）。
+func _build_paperdoll(crew_id: String) -> Control:
+	var v := VBoxContainer.new()
+	var eq := RunManager.get_equipment_for(crew_id)
+	for slot in range(9):
+		var l := Label.new()
+		var def: EquipmentDefinition = eq.get(slot, null)
+		l.text = "%s：%s" % [_SLOT_NOUNS[slot], def.display_name if def != null else "空"]
+		v.add_child(l)
+	return v
