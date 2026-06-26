@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="EquipmentDefinition" format=3]
+
+[ext_resource type="Script" path="res://src/data/equipment_definition.gd" id="1_xa8rw"]
+
+[resource]
+script = ExtResource("1_xa8rw")
+id = "eq_navigator_mainweapon"
+display_name = "航海刃"
+move_bonus = 2
+rarity = 2
+set_id = "set_navigator"

@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="EquipmentDefinition" format=3]
+
+[ext_resource type="Script" path="res://src/data/equipment_definition.gd" id="1_tjvdn"]
+
+[resource]
+script = ExtResource("1_tjvdn")
+id = "eq_navigator_legs"
+display_name = "航海护腿"
+move_bonus = 1
+slot = 5
+set_id = "set_navigator"

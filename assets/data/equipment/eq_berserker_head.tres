@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="EquipmentDefinition" format=3]
+
+[ext_resource type="Script" path="res://src/data/equipment_definition.gd" id="1_hs6rr"]
+
+[resource]
+script = ExtResource("1_hs6rr")
+id = "eq_berserker_head"
+display_name = "狂战盔"
+damage_bonus = 1
+slot = 2
+set_id = "set_berserker"

@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="EquipmentDefinition" format=3]
+
+[ext_resource type="Script" path="res://src/data/equipment_definition.gd" id="1_ceubb"]
+
+[resource]
+script = ExtResource("1_ceubb")
+id = "eq_frost_legs"
+display_name = "寒霜护腿"
+range_bonus = 1
+slot = 5
+set_id = "set_frost"

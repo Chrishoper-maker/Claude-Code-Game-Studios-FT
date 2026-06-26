@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="EquipmentDefinition" format=3]
+
+[ext_resource type="Script" path="res://src/data/equipment_definition.gd" id="1_p3yo4"]
+
+[resource]
+script = ExtResource("1_p3yo4")
+id = "eq_bloodthirst_necklace"
+display_name = "嗜血坠"
+damage_bonus = 2
+rarity = 1
+slot = 8
+set_id = "set_bloodthirst"

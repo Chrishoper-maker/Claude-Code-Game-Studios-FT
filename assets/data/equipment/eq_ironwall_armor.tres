@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="EquipmentDefinition" format=3]
+
+[ext_resource type="Script" path="res://src/data/equipment_definition.gd" id="1_s0d6l"]
+
+[resource]
+script = ExtResource("1_s0d6l")
+id = "eq_ironwall_armor"
+display_name = "铁壁甲"
+hp_bonus = 6
+rarity = 2
+slot = 3
+set_id = "set_ironwall"

@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="EquipmentDefinition" format=3]
+
+[ext_resource type="Script" path="res://src/data/equipment_definition.gd" id="1_dx877"]
+
+[resource]
+script = ExtResource("1_dx877")
+id = "eq_ironwall_ring"
+display_name = "铁壁戒"
+hp_bonus = 8
+rarity = 3
+slot = 7
+set_id = "set_ironwall"

@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="EquipmentDefinition" format=3]
+
+[ext_resource type="Script" path="res://src/data/equipment_definition.gd" id="1_gdhwd"]
+
+[resource]
+script = ExtResource("1_gdhwd")
+id = "eq_frost_mainweapon"
+display_name = "寒霜刃"
+range_bonus = 2
+rarity = 2
+set_id = "set_frost"

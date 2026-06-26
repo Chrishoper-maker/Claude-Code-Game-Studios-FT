@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="EquipmentDefinition" format=3]
+
+[ext_resource type="Script" path="res://src/data/equipment_definition.gd" id="1_vn1yt"]
+
+[resource]
+script = ExtResource("1_vn1yt")
+id = "eq_executioner_armor"
+display_name = "处决甲"
+damage_bonus = 3
+rarity = 2
+slot = 3
+set_id = "set_executioner"

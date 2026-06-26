@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="EquipmentDefinition" format=3]
+
+[ext_resource type="Script" path="res://src/data/equipment_definition.gd" id="1_ytjtt"]
+
+[resource]
+script = ExtResource("1_ytjtt")
+id = "eq_ironwall_mainweapon"
+display_name = "铁壁刃"
+hp_bonus = 6
+rarity = 2
+set_id = "set_ironwall"

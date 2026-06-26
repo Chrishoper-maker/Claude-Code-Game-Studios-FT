@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="EquipmentDefinition" format=3]
+
+[ext_resource type="Script" path="res://src/data/equipment_definition.gd" id="1_k825o"]
+
+[resource]
+script = ExtResource("1_k825o")
+id = "eq_thorns_legs"
+display_name = "荆棘护腿"
+hp_bonus = 2
+slot = 5
+set_id = "set_thorns"
