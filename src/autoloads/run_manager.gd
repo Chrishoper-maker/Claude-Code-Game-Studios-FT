@@ -16,6 +16,7 @@ const DEPLOY_LIMIT := 4
 const RECRUIT_EQUIP_ROLL := 8
 const RECRUIT_EQUIP_PICK := 2
 const SAME_SLOT_CAP := 2
+const SET_TIERS: Array = [3, 6, 9]   # 套装激活档位阈值（②b-1）
 # 招募滚装稀有度权重（百分比）；键为 Rarity 枚举值。
 const _RARITY_WEIGHTS := { 4: 2, 3: 8, 2: 15, 1: 25, 0: 50 }
 
@@ -376,6 +377,39 @@ func get_equipment_for(crew_id: String) -> Dictionary:
 			if def != null:
 				out[int(s)] = def
 	return out
+
+# ── 套装计数器（②b-1；本期只读，供偏向逻辑/纸娃娃/未来效果引擎共用）──
+
+# 某船员各套持有件数 {set_id → count}（仅含 ≥1；无套装件不计）。
+func get_set_counts(crew_id: String) -> Dictionary:
+	var counts: Dictionary = {}
+	var slots: Variant = _roster_equipment.get(crew_id, {})
+	if slots is Dictionary:
+		for s in (slots as Dictionary):
+			var def := EquipmentDataManager.get_equipment(str((slots as Dictionary)[s]))
+			if def != null and def.set_id != "":
+				counts[def.set_id] = int(counts.get(def.set_id, 0)) + 1
+	return counts
+
+# 主套：持有件数最多的 set_id；并列取字典序最小；无装备返回 ""。
+func get_dominant_set(crew_id: String) -> String:
+	var counts := get_set_counts(crew_id)
+	var best := ""
+	var best_n := 0
+	for sid in counts:
+		var n := int(counts[sid])
+		if n > best_n or (n == best_n and (best == "" or str(sid) < best)):
+			best = str(sid)
+			best_n = n
+	return best
+
+# 该套已激活档位（≤件数的最大阈值 ∈ {0,3,6,9}）。
+func get_active_set_tier(crew_id: String, set_id: String) -> int:
+	var n := int(get_set_counts(crew_id).get(set_id, 0))
+	for t in [9, 6, 3]:
+		if n >= t:
+			return t
+	return 0
 
 # ── 存档（run-save #13）──
 
