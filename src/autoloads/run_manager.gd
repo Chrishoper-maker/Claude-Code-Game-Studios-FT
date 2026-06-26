@@ -182,7 +182,7 @@ func _all_set_ids() -> Array[String]:
 	return out
 
 # 从 pool 里挑不同槽装备追加到 result（就地改 result/used_slots），直到 want 件或耗尽。
-func _fill_distinct_slots(result: Array, used_slots: Dictionary, pool: Array, want: int) -> void:
+func _fill_distinct_slots(result: Array[String], used_slots: Dictionary, pool: Array[EquipmentDefinition], want: int) -> void:
 	var candidates: Array = pool.duplicate()
 	# 洗牌（Fisher-Yates，走 _rng）。
 	for i in range(candidates.size() - 1, 0, -1):
@@ -208,7 +208,7 @@ func roll_initial_equipment() -> Array[String]:
 		var set_ids := _all_set_ids()
 		if not set_ids.is_empty():
 			var anchor := set_ids[_rng.randi_range(0, set_ids.size() - 1)]
-			var pool: Array = []
+			var pool: Array[EquipmentDefinition] = []
 			for eq in all:
 				if eq.set_id == anchor:
 					pool.append(eq)

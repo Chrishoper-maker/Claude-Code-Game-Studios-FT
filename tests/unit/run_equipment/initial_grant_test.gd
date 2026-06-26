@@ -4,6 +4,7 @@ extends GdUnitTestSuite
 func before_test() -> void:
 	RunManager._autosave_enabled = false
 	RunManager._roster_equipment.clear()
+	RunManager._excluded_offers.clear()
 	RunManager._rng.seed = 12345
 
 func test_initial_grant_returns_three_distinct_slots() -> void:

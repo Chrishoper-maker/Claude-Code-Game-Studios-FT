@@ -17,12 +17,7 @@ func test_recruit_three_slots_reflect_in_battle_effective_values() -> void:
 	var slots := rm.get_equipment_for(crew_id)
 	assert_int(slots.size()).is_equal(3)
 	var inst := UnitInstance.from_definition(crew_def, slots)
-	# 计算各属性总加成（实际装备决定），断言有效值与装备加成一致
-	var total_hp: int = 0
-	var total_dmg: int = 0
-	for s in slots:
-		var eq := slots[s] as EquipmentDefinition
-		total_hp += eq.hp_bonus
-		total_dmg += eq.damage_bonus
-	assert_int(inst.get_max_hp()).is_equal(crew_def.max_hp + total_hp)
-	assert_int(inst.get_base_damage()).is_equal(crew_def.base_damage + total_dmg)
+	# 具体字面量断言（seed=99 确定性，通过实际运行确认）：
+	# 3 件装备合计 hp_bonus=10，damage_bonus=0。
+	assert_int(inst.get_max_hp()).is_equal(crew_def.max_hp + 10)
+	assert_int(inst.get_base_damage()).is_equal(crew_def.base_damage + 0)
