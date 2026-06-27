@@ -16,6 +16,7 @@ func before_test() -> void:
 func after_test() -> void:
 	_tm.free()
 	_br.free()
+	_gb.free()
 
 func _enemy_def() -> UnitDefinition:
 	for d in UnitDataManager.get_all_units():
