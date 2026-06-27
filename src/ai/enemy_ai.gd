@@ -14,6 +14,7 @@ var _grid_board: GridBoard
 var _turn_manager: TurnManager
 var _battle_resolution: BattleResolution
 var _intent_map: Dictionary = {}   # int unit_id → IntentRecord
+var _move_cap := -1   # 本回合寒霜有效移动上限（-1=不限，用 get_move_range）
 
 func setup(grid_board: GridBoard, turn_manager: TurnManager, battle_resolution: BattleResolution) -> void:
 	_grid_board = grid_board
@@ -34,9 +35,16 @@ func _on_round_started(_round_count: int) -> void:
 
 # ── Rule 3/4：敌方 ACTIVE_TURN 执行意图（重算当前棋盘以内含过期处理），完成后通知回合管理 ──
 func _on_enemy_turn_started(unit_id: int) -> void:
-	var intent := decide_intent(unit_id)   # 重算 = 天然 stale-free（MVP；声明用于 HUD）
+	var fr := _battle_resolution.resolve_frost_for_turn(unit_id)
+	if fr["skip"]:                                    # 冻结：整回合跳过
+		_turn_manager.mark_has_acted(unit_id)
+		EventBus.enemy_actions_completed.emit(unit_id)
+		return
+	_move_cap = int(fr["move_cap"])                   # 冰封=0 / 滞步=减半 / 正常=-1
+	var intent := decide_intent(unit_id)
 	EventBus.intent_declared.emit(unit_id, intent)
 	_execute_intent(intent)
+	_move_cap = -1
 	EventBus.enemy_actions_completed.emit(unit_id)
 
 func _execute_intent(intent: IntentRecord) -> void:
@@ -103,6 +111,10 @@ func select_highest_stack_count(self_id: int) -> int:
 				best_key = key
 	return best
 
+# 本回合有效移动范围：寒霜 move_cap≥0 时取之（冰封0/滞步减半），否则单位基础移动。
+func _eff_move(u: UnitInstance) -> int:
+	return _move_cap if _move_cap >= 0 else u.get_move_range()
+
 # ── Rule 1/2 意图决策 ──
 
 func decide_intent(self_id: int) -> IntentRecord:
@@ -164,7 +176,7 @@ func _engage(self_id: int, target_id: int) -> IntentRecord:
 	var t := _turn_manager.get_unit(target_id)
 	if _battle_resolution.is_valid_attack(self_id, target_id):
 		return _attack(self_id, target_id)
-	var staging := _grid_board.get_attack_staging_cells(u.grid_position, u.get_move_range(), t.grid_position, u.get_attack_range())
+	var staging := _grid_board.get_attack_staging_cells(u.grid_position, _eff_move(u), t.grid_position, u.get_attack_range())
 	if not staging.is_empty():
 		return _move_attack(self_id, target_id, staging[0])
 	var move_to := _greedy_approach(u, t.grid_position)
@@ -177,7 +189,7 @@ func _greedy_approach(u: UnitInstance, goal: Vector2i) -> Vector2i:
 	var cur_d := GridBoard.manhattan(u.grid_position, goal)
 	var chosen := u.grid_position
 	var chosen_key: Array = []
-	for cell in _grid_board.get_reachable_cells(u.grid_position, u.get_move_range()):
+	for cell in _grid_board.get_reachable_cells(u.grid_position, _eff_move(u)):
 		var d := GridBoard.manhattan(cell, goal)
 		if d >= cur_d:
 			continue
@@ -192,7 +204,7 @@ func _retreat_from(u: UnitInstance, goal: Vector2i) -> Vector2i:
 	var best := u.grid_position
 	var best_d := GridBoard.manhattan(best, goal)
 	var best_key := best.x * 8 + best.y
-	for cell in _grid_board.get_reachable_cells(u.grid_position, u.get_move_range()):
+	for cell in _grid_board.get_reachable_cells(u.grid_position, _eff_move(u)):
 		var d := GridBoard.manhattan(cell, goal)
 		var key := cell.x * 8 + cell.y
 		if d > best_d or (d == best_d and key < best_key):
