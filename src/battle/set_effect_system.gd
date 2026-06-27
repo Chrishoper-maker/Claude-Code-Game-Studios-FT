@@ -6,6 +6,7 @@ extends Node
 const IRONWALL_HEAL := 3
 const HEALER_HEAL := 3
 const HEALER_HEAL_HIGH := 6
+const HEALER_RADIUS := 1   # 医者相邻自愈半径（与航海半径解耦）
 const NAVIGATOR_RADIUS := 1
 const NAVIGATOR_RADIUS_HIGH := 2
 
@@ -57,7 +58,7 @@ func _apply_healer(uid: int, unit: UnitInstance) -> void:
 	var amount := HEALER_HEAL_HIGH if SetBonus.is_tier_active(unit, "set_healer", 9) else HEALER_HEAL
 	_battle_resolution.execute_burst_heal(uid, amount)
 	if SetBonus.is_tier_active(unit, "set_healer", 6):
-		for ally_id in _same_faction_within_ids(unit, NAVIGATOR_RADIUS):
+		for ally_id in _same_faction_within_ids(unit, HEALER_RADIUS):
 			_battle_resolution.execute_burst_heal(ally_id, amount)
 
 # 航海：半径 9=2 否则=1（升级轴）；相邻友军得 AURA，6 档起也得 GUARDED（新增轴）。
