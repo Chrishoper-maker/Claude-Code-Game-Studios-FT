@@ -276,3 +276,46 @@ func test_do_verb_cannon_targets_inline_enemy_and_fires() -> void:
 	assert_bool(ctx.tm.get_unit(gunner).has_used_verb).is_true()
 	assert_int(ctx.tm.get_unit(far).current_hp).is_less(6)   # 穿透命中
 	assert_int(ctx.ctrl.get_mode()).is_equal(PlayerTurnController.Mode.IDLE)
+
+# ── 结束本角色（end-unit-turn）──
+func test_end_unit_turn_locks_actions_and_clears_selection() -> void:
+	var ctx := _make_controller()
+	var crew := _register(ctx.tm, ctx.gb, _make_def("crew", "swordsman", 3, 3, 10, "slash"), Vector2i(3, 7))
+	_begin_select(ctx, crew)
+	ctx.ctrl.end_unit_turn()
+	var u: UnitInstance = ctx.tm.get_unit(crew)
+	assert_bool(u.has_moved).is_true()
+	assert_bool(u.has_acted).is_true()
+	assert_bool(u.has_used_verb).is_true()
+	assert_int(ctx.ctrl.get_current_unit_id()).is_equal(-1)
+	assert_int(ctx.ctrl.get_mode()).is_equal(PlayerTurnController.Mode.IDLE)
+
+func test_end_unit_turn_emits_unit_turn_ended() -> void:
+	var ctx := _make_controller()
+	var crew := _register(ctx.tm, ctx.gb, _make_def("crew", "swordsman", 3, 3, 10, "slash"), Vector2i(3, 7))
+	_begin_select(ctx, crew)
+	var spy := [0, -1]
+	EventBus.unit_turn_ended.connect(func(id: int) -> void: spy[0] += 1; spy[1] = id)
+	ctx.ctrl.end_unit_turn()
+	assert_int(spy[0]).is_equal(1)
+	assert_int(spy[1]).is_equal(crew)
+
+func test_end_unit_turn_noop_without_selection() -> void:
+	var ctx := _make_controller()
+	ctx.ctrl._on_player_phase_started()
+	var spy := [0]
+	EventBus.unit_turn_ended.connect(func(_id: int) -> void: spy[0] += 1)
+	ctx.ctrl.end_unit_turn()
+	assert_int(spy[0]).is_equal(0)
+
+func test_ended_unit_reselect_has_no_actions() -> void:
+	var ctx := _make_controller()
+	var crew := _register(ctx.tm, ctx.gb, _make_def("crew", "swordsman", 3, 3, 10, "slash"), Vector2i(3, 7))
+	_register(ctx.tm, ctx.gb, _make_def("enemy", "swordsman", 2, 2, 6, ""), Vector2i(3, 6))   # 相邻敌（否则攻击本就不可用）
+	_begin_select(ctx, crew)
+	ctx.ctrl.end_unit_turn()
+	ctx.ctrl.select_unit(crew)
+	var actions: Dictionary = ctx.ctrl.get_available_actions()
+	assert_bool(actions["move"]).is_false()
+	assert_bool(actions["attack"]).is_false()
+	assert_bool(actions["verb"]).is_false()

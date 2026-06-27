@@ -277,6 +277,19 @@ func _do_burst(cell: Vector2i) -> void:
 	_burst_lead_id = -1
 	_set_mode(Mode.IDLE)
 
+# 玩家点浮窗"结束"调用：锁定当前角色三项行动点（本回合不能再动）+ 发 unit_turn_ended
+# （渲染层据此变灰）+ 清选中回 IDLE。复用行动点 → get_available_actions 自然全 false。
+func end_unit_turn() -> void:
+	if not _phase_active or _selected_unit_id == -1:
+		return
+	var ended_id := _selected_unit_id
+	_turn_manager.mark_has_moved(ended_id)
+	_turn_manager.mark_has_acted(ended_id)
+	_turn_manager.mark_has_used_verb(ended_id)
+	EventBus.unit_turn_ended.emit(ended_id)
+	_selected_unit_id = -1
+	_set_mode(Mode.IDLE)
+
 # 玩家点"结束我方回合"调用。
 func end_player_phase() -> void:
 	if not _phase_active:
