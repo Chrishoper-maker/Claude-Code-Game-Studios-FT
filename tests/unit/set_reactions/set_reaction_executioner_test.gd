@@ -51,3 +51,14 @@ func test_executioner_9_threshold_seven() -> void:
 	var t := _tm.get_unit(tid); t.current_hp = 7   # ≤阈值7
 	_srs.on_attack_executed(aid, tid, 1)
 	assert_int(t.current_hp).is_equal(0)            # 追加7致死
+
+# 普攻同帧致死：attack_executed 触发时目标 current_hp==0 但 is_alive 尚未翻转——
+# 处决须跳过，不对 0 血目标追击（否则重复 down/飘字）。
+func test_executioner_skips_target_already_at_zero_hp() -> void:
+	var aid := _register_set("executioner", 3)
+	var tid := _register_plain()
+	var t := _tm.get_unit(tid); t.current_hp = 0   # 本次普攻已致死同帧（is_alive 仍 true）
+	var spy := [0]
+	EventBus.damage_dealt.connect(func(_a: int, _b: int, _c: int) -> void: spy[0] += 1)
+	_srs.on_attack_executed(aid, tid, 1)
+	assert_int(spy[0]).is_equal(0)   # 处决未追击 0 血目标

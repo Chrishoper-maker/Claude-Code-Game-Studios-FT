@@ -68,7 +68,8 @@ func _apply_thorns(attacker_id: int, target: UnitInstance) -> void:
 # 处决：命中后若目标存活且 hp≤阈值 → 追加斩杀（取最高激活档；可致死）。
 func _apply_executioner(attacker: UnitInstance, target_id: int) -> void:
 	var t := _turn_manager.get_unit(target_id)
-	if t == null or not t.is_alive:
+	# 同帧致死时 is_alive 尚未翻转，需额外检查 current_hp≤0 来确保跳过已死目标。
+	if t == null or not t.is_alive or t.current_hp <= 0:
 		return
 	for tier in [9, 6, 3]:
 		if SetBonus.is_tier_active(attacker, "set_executioner", tier):
