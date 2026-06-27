@@ -297,7 +297,6 @@ func _show_battle_equip() -> void:
 		break
 	_clear_ui()
 	_active_screen = "battle_equip"
-	var picked: Array[String] = []     # 本船员已选 eid
 	var row := HBoxContainer.new()
 	_add_centered(row)
 	# 左：候选
@@ -310,30 +309,35 @@ func _show_battle_equip() -> void:
 		RunManager.BATTLE_PICK, RunManager.BATTLE_PICK]
 	left.add_child(title)
 	var doll_holder := VBoxContainer.new()
+	var selected: Array[String] = []        # 已选 eid（≤ BATTLE_PICK）
 	for eid in (pending[crew_id] as Array):
 		var eq := EquipmentDataManager.get_equipment(str(eid))
 		if eq == null:
 			continue
 		var b := Button.new()
+		b.toggle_mode = true
 		b.text = _equipment_summary(eq) + "〔%s〕" % eq.set_id
 		b.add_theme_color_override("font_color", EquipmentDefinition.rarity_color(eq.rarity))
-		b.pressed.connect(func() -> void:
-			if picked.size() >= RunManager.BATTLE_PICK:
-				return
-			var occupied := RunManager.get_equipment_for(crew_id).has(eq.slot)
-			# 占槽则替换（白盒直接替换；正式版可加确认）。
-			RunManager.equip_piece(crew_id, eq.id, occupied)
-			picked.append(eq.id)
-			b.disabled = true
+		b.toggled.connect(func(pressed: bool) -> void:
+			if pressed:
+				if selected.size() >= RunManager.BATTLE_PICK:
+					b.set_pressed_no_signal(false)   # 满 BATTLE_PICK：拒绝
+					return
+				selected.append(eq.id)
+			else:
+				selected.erase(eq.id)
 			title.text = "为 %s 选至多 %d 件（已选 %d/%d）" % [
 				(crew_def as CrewDefinition).display_name if crew_def is CrewDefinition else crew_id,
-				RunManager.BATTLE_PICK, picked.size(), RunManager.BATTLE_PICK]
-			_refresh_paperdoll(doll_holder, crew_id)
+				RunManager.BATTLE_PICK, selected.size(), RunManager.BATTLE_PICK]
 		)
 		left.add_child(b)
-	var done := Button.new()
-	done.text = "完成"
-	done.pressed.connect(func() -> void:
+	var confirm := Button.new()
+	confirm.text = "确认"
+	confirm.pressed.connect(func() -> void:
+		for picked_eid in selected:
+			var pdef := EquipmentDataManager.get_equipment(picked_eid)
+			var occupied := pdef != null and RunManager.get_equipment_for(crew_id).has(pdef.slot)
+			RunManager.equip_piece(crew_id, picked_eid, occupied)
 		RunManager.finish_crew_equip(crew_id)
 		_clear_ui()
 		if RunManager.current_phase == "EQUIPPING":
@@ -341,7 +345,7 @@ func _show_battle_equip() -> void:
 		else:
 			_notice_then(_show_recruit_offers)
 	)
-	left.add_child(done)
+	left.add_child(confirm)
 	# 右：纸娃娃
 	row.add_child(doll_holder)
 	_refresh_paperdoll(doll_holder, crew_id)
