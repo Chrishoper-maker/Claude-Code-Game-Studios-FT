@@ -20,6 +20,10 @@ const STATUS_AURA := &"AURA_BONUS"
 const STATUS_FRENZY := &"FRENZY"               # 套装攻击增益 +2（攻击后消耗）
 const STATUS_FRENZY_PERSIST := &"FRENZY_PERSIST"  # 套装攻击增益 +2（本轮不消耗）
 const STATUS_SET_GUARD := &"SET_GUARD"         # 套装减半（本轮不消耗）
+const STATUS_FROST_SLOW := &"FROST_SLOW"       # 寒霜3档：移动减半（敌回合消费）
+const STATUS_FROST_ROOT := &"FROST_ROOT"       # 寒霜6档：不能移动（敌回合消费）
+const STATUS_FROST_FREEZE := &"FROST_FREEZE"   # 寒霜9档：跳过整回合（敌回合消费）
+const STATUS_FROST_IMMUNE := &"FROST_IMMUNE"   # 解冻后一回合免疫（跨回合，防永冻）
 const FRENZY_VALUE := 2                         # 狂热增益
 
 var _grid_board: GridBoard
@@ -53,6 +57,31 @@ func clear_round_statuses() -> void:
 		_unit_statuses[id].erase(STATUS_FRENZY)
 		_unit_statuses[id].erase(STATUS_FRENZY_PERSIST)
 		_unit_statuses[id].erase(STATUS_SET_GUARD)
+		_unit_statuses[id].erase(STATUS_FROST_SLOW)
+		_unit_statuses[id].erase(STATUS_FROST_ROOT)
+		_unit_statuses[id].erase(STATUS_FROST_FREEZE)
+
+# 敌方单位回合开始结算寒霜：返回 {skip, move_cap}（move_cap=-1 表正常用 get_move_range）。
+# 有寒霜→算 outcome（冻结跳过/冰封move0/滞步move减半）+消费该状态+置 FROST_IMMUNE；
+# 无寒霜→清 FROST_IMMUNE（免疫到期）。FROST_x 回合级、FROST_IMMUNE 跨回合（见 clear_round_statuses）。
+func resolve_frost_for_turn(unit_id: int) -> Dictionary:
+	var u := _turn_manager.get_unit(unit_id)
+	if u == null:
+		return {"skip": false, "move_cap": -1}
+	if get_unit_status(unit_id, STATUS_FROST_FREEZE):
+		_consume_status(unit_id, STATUS_FROST_FREEZE)
+		apply_status(unit_id, STATUS_FROST_IMMUNE)
+		return {"skip": true, "move_cap": 0}
+	if get_unit_status(unit_id, STATUS_FROST_ROOT):
+		_consume_status(unit_id, STATUS_FROST_ROOT)
+		apply_status(unit_id, STATUS_FROST_IMMUNE)
+		return {"skip": false, "move_cap": 0}
+	if get_unit_status(unit_id, STATUS_FROST_SLOW):
+		_consume_status(unit_id, STATUS_FROST_SLOW)
+		apply_status(unit_id, STATUS_FROST_IMMUNE)
+		return {"skip": false, "move_cap": u.get_move_range() / 2}   # int 除法 = floor
+	_consume_status(unit_id, STATUS_FROST_IMMUNE)   # 无寒霜 → 免疫到期
+	return {"skip": false, "move_cap": -1}
 
 # ── 修正器注入（Rule 10 / ADR D5 直连例外）──
 func register_attack_modifier(attacker_id: int, bonus: int) -> void:
