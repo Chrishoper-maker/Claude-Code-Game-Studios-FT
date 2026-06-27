@@ -41,10 +41,13 @@ func test_ac1_start_run_charts_then_holds_starting_crew() -> void:
 	for sid in STARTING_IDS:
 		assert_bool(ids.has(sid)).is_true()
 
-# AC-2：非末岛打赢 → RECRUITING + 三选一候选（≤3、职业互异、皆 pool tier）。
+# AC-2：非末岛打赢 → EQUIPPING（有出战存活者）→ 全完装后 RECRUITING + 三选一候选（≤3、职业互异、皆 pool tier）。
 func test_ac2_win_nonfinal_offers_three_distinct_recruits() -> void:
 	_deploy_roster()                       # → island 0, BATTLE
-	EventBus.battle_won.emit()             # 真实接线 → RunManager._on_battle_won
+	EventBus.battle_won.emit()             # 真实接线 → RunManager._on_battle_won → EQUIPPING
+	# 跳过装备选择：逐一完装推入 RECRUITING
+	for cid in RunManager.get_pending_battle_equip().keys().duplicate():
+		RunManager.finish_crew_equip(cid)
 	assert_str(RunManager.current_phase).is_equal("RECRUITING")
 	var offers := RunManager.get_recruit_offers()
 	assert_int(offers.size()).is_greater_equal(2)
@@ -104,7 +107,10 @@ func test_ac6_restart_returns_to_first_island() -> void:
 # AC-7（最难）：招募池抽干 → RouteScene 跳过招募直接进下一岛，不崩。
 func test_ac7_exhausted_pool_skips_recruit_via_route_scene() -> void:
 	_deploy_roster()
-	EventBus.battle_won.emit()             # → RECRUITING
+	EventBus.battle_won.emit()             # → EQUIPPING（有出战存活者）
+	# 跳过装备选择推入 RECRUITING
+	for cid in RunManager.get_pending_battle_equip().keys().duplicate():
+		RunManager.finish_crew_equip(cid)
 	assert_str(RunManager.current_phase).is_equal("RECRUITING")
 	# 抽干招募池：所有 pool tier 进排除集
 	for def in UnitDataManager.get_all_units():

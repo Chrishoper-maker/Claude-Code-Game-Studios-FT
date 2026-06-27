@@ -13,11 +13,12 @@ const RECRUIT_OFFER_COUNT := 3
 const ROUTE_OFFER_COUNT := 3
 const ISLAND_COUNT_MAX := 5
 const DEPLOY_LIMIT := 4
-const RECRUIT_EQUIP_ROLL := 8
-const RECRUIT_EQUIP_PICK := 2
-const SAME_SLOT_CAP := 2
-# 招募滚装稀有度权重（百分比）；键为 Rarity 枚举值。
-const _RARITY_WEIGHTS := { 4: 2, 3: 8, 2: 15, 1: 25, 0: 50 }
+const INITIAL_GRANT := 3        # 起始/招募直发件数
+const SAME_SET_CHANCE := 80     # 3 件同套概率（%，0-99 判定）
+const SET_TIERS: Array = [3, 6, 9]   # 套装激活档位阈值（②b-1）
+const BATTLE_ROLL := 8          # 战后滚装备候选件数
+const BATTLE_PICK := 2          # 玩家从候选中选取件数
+const BIAS_CHANCE := 80         # 偏向主套概率（%，0-99 判定）
 
 # ── 状态机（ADR-0004）──
 enum RunPhase {
@@ -25,6 +26,7 @@ enum RunPhase {
 	RUN_DEPLOYING,
 	RUN_ISLAND_BATTLE,
 	RUN_RECRUITING,
+	RUN_EQUIPPING,
 	RUN_CHARTING,
 	RUN_END
 }
@@ -34,6 +36,7 @@ const _PHASE_TO_STRING: Dictionary = {
 	RunPhase.RUN_DEPLOYING:     "DEPLOYING",
 	RunPhase.RUN_ISLAND_BATTLE: "BATTLE",
 	RunPhase.RUN_RECRUITING:    "RECRUITING",
+	RunPhase.RUN_EQUIPPING:     "EQUIPPING",
 	RunPhase.RUN_CHARTING:      "CHARTING",
 	RunPhase.RUN_END:           "RUN_END",
 }
@@ -60,8 +63,8 @@ var _chosen_map_id: String = ""             # 本次选航选定的 map_id（bat
 var _visited_map_ids: Array[String] = []     # 本 run 已访问 map_id（选航不重复）
 var _last_route_offers: Array[String] = []   # 本批选航候选 map_id（confirm_route 据此校验）
 var _roster_equipment: Dictionary = {}   # crew_id → { slot:int → equipment_id }（已招船员持有的装备）
-var _pending_recruit_equip: Array[String] = []   # 本次招募滚出的 8 件 eid（玩家从中选 2）
-var _rng: RandomNumberGenerator = RandomNumberGenerator.new()  # 招募抽样（测试可 seed；断言不变量）
+var _pending_battle_equip: Dictionary = {}   # crew_id → Array[String]（战后 8 件候选）
+var _rng: RandomNumberGenerator = RandomNumberGenerator.new()  # 直发抽样（测试可 seed；断言不变量）
 var _save_path: String = "user://run.json"        # 进行中 run 存档路径（测试可注入）
 var _autosave_enabled: bool = true                 # 航点自动存档开关（Task 2 钩子读取；测试关）
 
@@ -94,6 +97,8 @@ func _on_run_phase_entered(phase: RunPhase) -> void:
 			EventBus.run_phase_changed.emit("BATTLE")
 		RunPhase.RUN_RECRUITING:
 			EventBus.run_phase_changed.emit("RECRUITING")
+		RunPhase.RUN_EQUIPPING:
+			EventBus.run_phase_changed.emit("EQUIPPING")
 		RunPhase.RUN_CHARTING:
 			EventBus.run_phase_changed.emit("CHARTING")
 		RunPhase.RUN_END:
@@ -103,7 +108,7 @@ func _on_run_phase_entered(phase: RunPhase) -> void:
 	# 航点自动存档（run-save #13）：航点存、终局删；BATTLE/IDLE 不动。
 	if _autosave_enabled:
 		match phase:
-			RunPhase.RUN_DEPLOYING, RunPhase.RUN_RECRUITING, RunPhase.RUN_CHARTING:
+			RunPhase.RUN_DEPLOYING, RunPhase.RUN_RECRUITING, RunPhase.RUN_CHARTING, RunPhase.RUN_EQUIPPING:
 				save_run()
 			RunPhase.RUN_END:
 				delete_save()
@@ -116,7 +121,6 @@ func start_run() -> void:
 	_excluded_offers.clear()
 	_last_offers.clear()
 	_roster_equipment.clear()
-	_pending_recruit_equip.clear()
 	pending_deploy.clear()
 	_downed_this_run.clear()
 	_downed_pending_notice.clear()
@@ -129,6 +133,9 @@ func start_run() -> void:
 	for def in UnitDataManager.get_all_units():
 		if def is CrewDefinition and (def as CrewDefinition).recruit_pool_tier == "starting":
 			roster.append(def as CrewDefinition)
+	# 起始船员直发 3 件装备（80% 同套）
+	for c in roster:
+		_grant_equipment(c.id, roll_initial_equipment())
 	_set_run_phase(RunPhase.RUN_CHARTING)
 
 func get_roster() -> Array[CrewDefinition]:
@@ -170,49 +177,122 @@ func get_recruit_offers() -> Array[CrewDefinition]:
 		_last_offers.append(o.id)
 	return offers
 
-# 按权重抽一个稀有度（高→低累计）。
-func _roll_rarity() -> int:
-	var total := 0
-	for r in _RARITY_WEIGHTS:
-		total += int(_RARITY_WEIGHTS[r])
-	var roll := _rng.randi_range(1, total)
-	var acc := 0
-	for r in [4, 3, 2, 1, 0]:
-		acc += int(_RARITY_WEIGHTS[r])
-		if roll <= acc:
-			return r
-	return 0
+# 全部 set_id（去重排序，确定性）。
+func _all_set_ids() -> Array[String]:
+	var seen: Dictionary = {}
+	for eq in EquipmentDataManager.get_all_equipment():
+		if eq.set_id != "":
+			seen[eq.set_id] = true
+	var out: Array[String] = []
+	for k in seen:
+		out.append(str(k))
+	out.sort()
+	return out
 
-# 某稀有度子池；空则降级到相邻较低稀有度，直至非空或耗尽。
-func _equip_subpool(rarity: int) -> Array[EquipmentDefinition]:
-	var r := rarity
-	while r >= 0:
-		var sub := EquipmentDataManager.get_equipment_by_rarity(r)
-		if not sub.is_empty():
-			return sub
-		r -= 1
-	return []
-
-# 招募滚 8 件：权重稀有度 + 同槽≤2。写 _pending_recruit_equip，返回定义数组（UI 用）。
-func roll_recruit_equipment() -> Array[EquipmentDefinition]:
-	_pending_recruit_equip.clear()
-	var result: Array[EquipmentDefinition] = []
-	var slot_counts: Dictionary = {}
-	var attempts := 0
-	var max_attempts := RECRUIT_EQUIP_ROLL * 30
-	while result.size() < RECRUIT_EQUIP_ROLL and attempts < max_attempts:
-		attempts += 1
-		var sub := _equip_subpool(_roll_rarity())
-		if sub.is_empty():
+# 从 pool 里挑不同槽装备追加到 result（就地改 result/used_slots），直到 want 件或耗尽。
+func _fill_distinct_slots(result: Array[String], used_slots: Dictionary, pool: Array[EquipmentDefinition], want: int) -> void:
+	var candidates: Array = pool.duplicate()
+	# 洗牌（Fisher-Yates，走 _rng）。
+	for i in range(candidates.size() - 1, 0, -1):
+		var j := _rng.randi_range(0, i)
+		var tmp: Variant = candidates[i]
+		candidates[i] = candidates[j]
+		candidates[j] = tmp
+	for eq in candidates:
+		if result.size() >= want:
 			break
-		var pick := sub[_rng.randi_range(0, sub.size() - 1)]
-		var sc := int(slot_counts.get(pick.slot, 0))
-		if sc >= SAME_SLOT_CAP:
-			continue   # 同槽触顶，重滚
-		slot_counts[pick.slot] = sc + 1
-		result.append(pick)
-		_pending_recruit_equip.append(pick.id)
+		if not used_slots.has(eq.slot):
+			used_slots[eq.slot] = true
+			result.append(eq.id)
+
+# 起始/招募直发 3 件：80% 概率 3 件同套，否则混搭；均不同槽。
+func roll_initial_equipment() -> Array[String]:
+	var result: Array[String] = []
+	var used_slots: Dictionary = {}
+	var all := EquipmentDataManager.get_all_equipment()
+	if all.is_empty():
+		return result
+	if _rng.randi_range(0, 99) < SAME_SET_CHANCE:
+		var set_ids := _all_set_ids()
+		if not set_ids.is_empty():
+			var anchor := set_ids[_rng.randi_range(0, set_ids.size() - 1)]
+			var pool: Array[EquipmentDefinition] = []
+			for eq in all:
+				if eq.set_id == anchor:
+					pool.append(eq)
+			_fill_distinct_slots(result, used_slots, pool, INITIAL_GRANT)
+	# 不足（含混搭分支与同套槽不够）→ 从全池补足。
+	_fill_distinct_slots(result, used_slots, all, INITIAL_GRANT)
 	return result
+
+# 把若干 eid 按其 slot 写入某船员装备账本（覆盖同槽）。
+func _grant_equipment(crew_id: String, eids: Array) -> void:
+	var slots: Dictionary = _roster_equipment.get(crew_id, {})
+	slots = slots.duplicate()
+	for raw in eids:
+		var def := EquipmentDataManager.get_equipment(str(raw))
+		if def != null:
+			slots[def.slot] = str(raw)
+	if not slots.is_empty():
+		_roster_equipment[crew_id] = slots
+
+# 某船员已占槽集合。
+func _owned_slots(crew_id: String) -> Dictionary:
+	var out: Dictionary = {}
+	var slots: Variant = _roster_equipment.get(crew_id, {})
+	if slots is Dictionary:
+		for s in (slots as Dictionary):
+			out[int(s)] = true
+	return out
+
+## 战后滚 8 件：每件独立 80% 偏向主套（优先未拥有空槽件），否则随机。
+func roll_battle_equipment(crew_id: String) -> Array[String]:
+	var out: Array[String] = []
+	var all := EquipmentDataManager.get_all_equipment()
+	if all.is_empty():
+		return out
+	var dominant := get_dominant_set(crew_id)
+	var owned := _owned_slots(crew_id)
+	var dom_pool: Array = []
+	var dom_empty: Array = []
+	if dominant != "":
+		for eq in all:
+			if eq.set_id == dominant:
+				dom_pool.append(eq)
+				if not owned.has(eq.slot):
+					dom_empty.append(eq)
+	for i in range(BATTLE_ROLL):
+		var pick: EquipmentDefinition = null
+		if dominant != "" and _rng.randi_range(0, 99) < BIAS_CHANCE:
+			var src: Array = dom_empty if not dom_empty.is_empty() else dom_pool
+			if not src.is_empty():
+				pick = src[_rng.randi_range(0, src.size() - 1)]
+		if pick == null:
+			pick = all[_rng.randi_range(0, all.size() - 1)]
+		out.append(pick.id)
+	return out
+
+## 装上一件：空槽直接装；已占槽需 replace=true 才覆盖（丢弃旧件）。返回是否装上。
+func equip_piece(crew_id: String, eid: String, replace: bool) -> bool:
+	var def := EquipmentDataManager.get_equipment(eid)
+	if def == null:
+		return false
+	var slots: Dictionary = (_roster_equipment.get(crew_id, {}) as Dictionary).duplicate()
+	if slots.has(def.slot) and not replace:
+		return false
+	slots[def.slot] = eid
+	_roster_equipment[crew_id] = slots
+	return true
+
+## 某船员补装完成 → 出队列；空则转招募。
+func finish_crew_equip(crew_id: String) -> void:
+	_pending_battle_equip.erase(crew_id)
+	if _pending_battle_equip.is_empty():
+		_set_run_phase(RunPhase.RUN_RECRUITING)
+
+## 待补装船员 id → 候选 eid 列表（副本）。
+func get_pending_battle_equip() -> Dictionary:
+	return _pending_battle_equip.duplicate(true)
 
 # 即将抵达岛号 → 目标 island_tier 集合（可调）。next_idx = current_island_index + 1。
 func _target_tiers_for_island(next_idx: int) -> Array[int]:
@@ -279,30 +359,18 @@ func confirm_route(map_id: String) -> void:
 func get_chosen_map_id() -> String:
 	return _chosen_map_id
 
-# 选中候选加入 roster；equip_picks 为玩家选的 eid 数组（限不同槽，越界/同槽忽略）。→CHARTING。
-func confirm_recruit(unit_id: String, equip_picks: Array = []) -> void:
+# 选中候选加入 roster + 直发 3 件装备（80% 同套）。→CHARTING。
+func confirm_recruit(unit_id: String) -> void:
 	var def := UnitDataManager.get_unit(unit_id)
 	if def is CrewDefinition:
 		roster.append(def as CrewDefinition)
-		var slots: Dictionary = {}
-		for raw in equip_picks:
-			var eid := str(raw)
-			var edef := EquipmentDataManager.get_equipment(eid)
-			if edef == null:
-				continue
-			if slots.has(edef.slot):
-				push_error("RunManager.confirm_recruit: 两件装备同槽，忽略第二件 — %s" % eid)
-				continue
-			slots[edef.slot] = eid
-		if not slots.is_empty():
-			_roster_equipment[unit_id] = slots
+		_grant_equipment(unit_id, roll_initial_equipment())
 	else:
 		push_error("RunManager.confirm_recruit: unit_id 非 CrewDefinition 或不存在 — %s" % unit_id)
 	for offered_id in _last_offers:
 		if offered_id != unit_id and not _excluded_offers.has(offered_id):
 			_excluded_offers.append(offered_id)
 	_last_offers.clear()
-	_pending_recruit_equip.clear()
 	_set_run_phase(RunPhase.RUN_CHARTING)
 
 # 部署确认 → 进入战斗（ADR-0002 场景切换序列）。pending_deploy = roster 中被选 id 的 defs。
@@ -327,7 +395,19 @@ func _on_battle_won() -> void:
 		_unlocked_this_run = MetaProgress.unlock_next()   # 悬赏成长：通关解锁下一名 unlockable（含存盘）；记录供 run-end 展示
 		_goto_route.call()
 		return
-	_set_run_phase(RunPhase.RUN_RECRUITING)      # 发 run_phase_changed("RECRUITING")
+	# 非末岛：为本场出战且存活（仍在 roster）的船员滚战后候选。
+	_pending_battle_equip.clear()
+	var roster_ids: Dictionary = {}
+	for c in roster:
+		roster_ids[c.id] = true
+	for c in pending_deploy:
+		if roster_ids.has(c.id):
+			_pending_battle_equip[c.id] = roll_battle_equipment(c.id)
+	if not _pending_battle_equip.is_empty():
+		_set_run_phase(RunPhase.RUN_EQUIPPING)
+		_goto_route.call()
+		return
+	_set_run_phase(RunPhase.RUN_RECRUITING)
 	_goto_route.call()
 
 # 战斗失败 → run 终局（全员阵亡）。切回 RouteScene 显示 run-end。
@@ -377,6 +457,39 @@ func get_equipment_for(crew_id: String) -> Dictionary:
 				out[int(s)] = def
 	return out
 
+# ── 套装计数器（②b-1；本期只读，供偏向逻辑/纸娃娃/未来效果引擎共用）──
+
+# 某船员各套持有件数 {set_id → count}（仅含 ≥1；无套装件不计）。
+func get_set_counts(crew_id: String) -> Dictionary:
+	var counts: Dictionary = {}
+	var slots: Variant = _roster_equipment.get(crew_id, {})
+	if slots is Dictionary:
+		for s in (slots as Dictionary):
+			var def := EquipmentDataManager.get_equipment(str((slots as Dictionary)[s]))
+			if def != null and def.set_id != "":
+				counts[def.set_id] = int(counts.get(def.set_id, 0)) + 1
+	return counts
+
+# 主套：持有件数最多的 set_id；并列取字典序最小；无装备返回 ""。
+func get_dominant_set(crew_id: String) -> String:
+	var counts := get_set_counts(crew_id)
+	var best := ""
+	var best_n := 0
+	for sid in counts:
+		var n := int(counts[sid])
+		if n > best_n or (n == best_n and (best == "" or str(sid) < best)):
+			best = str(sid)
+			best_n = n
+	return best
+
+# 该套已激活档位（≤件数的最大阈值 ∈ {0,3,6,9}）。
+func get_active_set_tier(crew_id: String, set_id: String) -> int:
+	var n := int(get_set_counts(crew_id).get(set_id, 0))
+	for t in [9, 6, 3]:
+		if n >= t:
+			return t
+	return 0
+
 # ── 存档（run-save #13）──
 
 # 序列化进行中 run 状态（纯，无 I/O）。crew 存 id，rng 存 str 防精度丢失。
@@ -403,6 +516,7 @@ func to_save_dict() -> Dictionary:
 		"chosen_map_id": _chosen_map_id,
 		"visited_map_ids": _visited_map_ids.duplicate(),
 		"last_route_offers": _last_route_offers.duplicate(),
+		"pending_battle_equip": _pending_battle_equip.duplicate(true),
 	}
 
 # 反序列化恢复（直接赋 _phase，不发信号）。缺失 crew id 防御性跳过。
@@ -455,6 +569,22 @@ func load_from_save_dict(d: Dictionary) -> void:
 					slots[edef.slot] = eid
 			if not slots.is_empty():
 				_roster_equipment[cid] = slots
+	# 战后候选恢复：仅保留仍在 roster 的 crew（§5 spec 要求），且 eid 必须存在。
+	_pending_battle_equip.clear()
+	var pbe: Variant = d.get("pending_battle_equip", {})
+	if pbe is Dictionary:
+		for k in (pbe as Dictionary):
+			var cid := str(k)
+			if not roster_id_set.has(cid):
+				continue
+			var raw: Variant = (pbe as Dictionary)[k]
+			var eids: Array[String] = []
+			if raw is Array:
+				for e in (raw as Array):
+					if EquipmentDataManager.get_equipment(str(e)) != null:
+						eids.append(str(e))
+			if not eids.is_empty():
+				_pending_battle_equip[cid] = eids
 
 func _to_string_array(v: Variant) -> Array[String]:
 	var out: Array[String] = []
@@ -469,6 +599,7 @@ func _phase_from_string(s: String) -> RunPhase:
 		"DEPLOYING": return RunPhase.RUN_DEPLOYING
 		"BATTLE": return RunPhase.RUN_ISLAND_BATTLE
 		"RECRUITING": return RunPhase.RUN_RECRUITING
+		"EQUIPPING": return RunPhase.RUN_EQUIPPING
 		"CHARTING": return RunPhase.RUN_CHARTING
 		"RUN_END": return RunPhase.RUN_END
 		_: return RunPhase.RUN_IDLE

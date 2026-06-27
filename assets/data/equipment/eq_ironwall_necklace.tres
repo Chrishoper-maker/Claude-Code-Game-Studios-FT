@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="EquipmentDefinition" format=3]
+
+[ext_resource type="Script" path="res://src/data/equipment_definition.gd" id="1_uv3tt"]
+
+[resource]
+script = ExtResource("1_uv3tt")
+id = "eq_ironwall_necklace"
+display_name = "铁壁坠"
+hp_bonus = 4
+rarity = 1
+slot = 8
+set_id = "set_ironwall"

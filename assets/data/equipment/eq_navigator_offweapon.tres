@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="EquipmentDefinition" format=3]
+
+[ext_resource type="Script" path="res://src/data/equipment_definition.gd" id="1_ebmij"]
+
+[resource]
+script = ExtResource("1_ebmij")
+id = "eq_navigator_offweapon"
+display_name = "航海盾"
+move_bonus = 1
+rarity = 1
+slot = 1
+set_id = "set_navigator"

@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="EquipmentDefinition" format=3]
+
+[ext_resource type="Script" path="res://src/data/equipment_definition.gd" id="1_vl2sn"]
+
+[resource]
+script = ExtResource("1_vl2sn")
+id = "eq_bloodthirst_mainweapon"
+display_name = "嗜血刃"
+damage_bonus = 3
+rarity = 2
+set_id = "set_bloodthirst"

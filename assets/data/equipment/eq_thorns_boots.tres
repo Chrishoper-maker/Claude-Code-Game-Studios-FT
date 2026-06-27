@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="EquipmentDefinition" format=3]
+
+[ext_resource type="Script" path="res://src/data/equipment_definition.gd" id="1_hxh5m"]
+
+[resource]
+script = ExtResource("1_hxh5m")
+id = "eq_thorns_boots"
+display_name = "荆棘战靴"
+hp_bonus = 4
+rarity = 1
+slot = 6
+set_id = "set_thorns"

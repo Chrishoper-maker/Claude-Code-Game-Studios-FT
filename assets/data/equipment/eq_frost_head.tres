@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="EquipmentDefinition" format=3]
+
+[ext_resource type="Script" path="res://src/data/equipment_definition.gd" id="1_72ais"]
+
+[resource]
+script = ExtResource("1_72ais")
+id = "eq_frost_head"
+display_name = "寒霜盔"
+range_bonus = 1
+slot = 2
+set_id = "set_frost"

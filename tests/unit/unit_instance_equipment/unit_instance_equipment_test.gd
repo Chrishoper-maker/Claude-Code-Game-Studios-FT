@@ -12,19 +12,19 @@ func test_no_equipment_uses_base_values() -> void:
 	assert_int(inst.get_max_hp()).is_equal(_crew().max_hp)
 
 func test_single_slot_adds_bonus() -> void:
-	var slots := { EquipmentDefinition.Slot.ARMOR: _eq("eq_plate") }  # +3血
+	var slots := { EquipmentDefinition.Slot.ARMOR: _eq("eq_ironwall_armor") }  # +6血
 	var inst := UnitInstance.from_definition(_crew(), slots)
-	assert_int(inst.get_max_hp()).is_equal(_crew().max_hp + 3)
+	assert_int(inst.get_max_hp()).is_equal(_crew().max_hp + 6)
 
 func test_multi_slot_sums_all_bonuses() -> void:
 	var slots := {
-		EquipmentDefinition.Slot.ARMOR: _eq("eq_plate"),       # +3血
-		EquipmentDefinition.Slot.MAIN_WEAPON: _eq("eq_cutlass"),# +1攻
-		EquipmentDefinition.Slot.BOOTS: _eq("eq_boots"),        # +1移动
+		EquipmentDefinition.Slot.ARMOR: _eq("eq_ironwall_armor"),       # +6血
+		EquipmentDefinition.Slot.MAIN_WEAPON: _eq("eq_berserker_mainweapon"),# +3攻
+		EquipmentDefinition.Slot.BOOTS: _eq("eq_navigator_boots"),        # +1移动
 	}
 	var inst := UnitInstance.from_definition(_crew(), slots)
-	assert_int(inst.get_max_hp()).is_equal(_crew().max_hp + 3)
-	assert_int(inst.get_base_damage()).is_equal(_crew().base_damage + 1)
+	assert_int(inst.get_max_hp()).is_equal(_crew().max_hp + 6)
+	assert_int(inst.get_base_damage()).is_equal(_crew().base_damage + 3)
 	assert_int(inst.get_move_range()).is_equal(_crew().move_range + 1)
 
 func test_bonus_clamped_at_zero() -> void:

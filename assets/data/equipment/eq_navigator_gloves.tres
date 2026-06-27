@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="EquipmentDefinition" format=3]
+
+[ext_resource type="Script" path="res://src/data/equipment_definition.gd" id="1_154er"]
+
+[resource]
+script = ExtResource("1_154er")
+id = "eq_navigator_gloves"
+display_name = "航海护手"
+move_bonus = 1
+slot = 4
+set_id = "set_navigator"

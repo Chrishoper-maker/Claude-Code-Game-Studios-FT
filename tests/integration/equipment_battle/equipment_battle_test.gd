@@ -80,16 +80,16 @@ func _crew_def(unit_class: String = "bulwark", hp: int = 12) -> CrewDefinition:
 
 # ── 主测试：deploy_crew 携装备后 UnitInstance 有效血量含加成 ──
 
-# AC-7：eq_plate 给 +3 HP；基值 12 → 期望 15。
+# AC-7：eq_ironwall_armor 给 +6 HP；基值 12 → 期望 18。
 func test_deploy_crew_with_equipment_applies_stat_bonus() -> void:
 	var ctx := _ready_map()
 	var bm: BattleMap = ctx[0]
 	var tm: TurnManager = ctx[2]
 
-	var plate: EquipmentDefinition = EquipmentDataManager.get_equipment("eq_plate")
+	var armor: EquipmentDefinition = EquipmentDataManager.get_equipment("eq_ironwall_armor")
 	var crew: CrewDefinition = _crew_def("bulwark", 12)
 
-	var eq_dict := { EquipmentDefinition.Slot.ARMOR: plate }
+	var eq_dict := { EquipmentDefinition.Slot.ARMOR: armor }
 	var ok := bm.deploy_crew([crew], [Vector2i(0, 6)], [eq_dict])
 	assert_bool(ok).is_true()
 
@@ -97,8 +97,8 @@ func test_deploy_crew_with_equipment_applies_stat_bonus() -> void:
 	assert_int(allies.size()).is_equal(1)
 
 	var inst: UnitInstance = tm.get_unit(allies[0])
-	assert_int(inst.get_max_hp()).is_equal(15)
-	assert_int(inst.current_hp).is_equal(15)
+	assert_int(inst.get_max_hp()).is_equal(18)
+	assert_int(inst.current_hp).is_equal(18)
 
 # 对照组：同格空装备数组 → 基础血量不含加成。
 func test_deploy_crew_without_equipment_uses_base_stats() -> void:

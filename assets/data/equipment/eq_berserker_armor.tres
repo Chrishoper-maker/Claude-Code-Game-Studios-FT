@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="EquipmentDefinition" format=3]
+
+[ext_resource type="Script" path="res://src/data/equipment_definition.gd" id="1_yqixj"]
+
+[resource]
+script = ExtResource("1_yqixj")
+id = "eq_berserker_armor"
+display_name = "狂战甲"
+damage_bonus = 3
+rarity = 2
+slot = 3
+set_id = "set_berserker"

@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="EquipmentDefinition" format=3]
+
+[ext_resource type="Script" path="res://src/data/equipment_definition.gd" id="1_s8o4a"]
+
+[resource]
+script = ExtResource("1_s8o4a")
+id = "eq_frost_ring"
+display_name = "寒霜戒"
+range_bonus = 2
+rarity = 3
+slot = 7
+set_id = "set_frost"
