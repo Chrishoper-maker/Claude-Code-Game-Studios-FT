@@ -54,6 +54,16 @@ func test_select_crew_unit_makes_it_active() -> void:
 	_begin_select(ctx, crew)
 	assert_bool(ctx.ctrl.is_active()).is_true()
 	assert_int(ctx.ctrl.get_current_unit_id()).is_equal(crew)
+	# #1：选中可移动单位后自动进 MOVE（crew 在 (3,7)、move_range 3、未移动 → 可达非空）
+	assert_int(ctx.ctrl.get_mode()).is_equal(PlayerTurnController.Mode.MOVE)
+	assert_bool(ctx.ctrl.get_valid_targets().is_empty()).is_false()
+
+func test_select_unit_with_no_move_left_stays_idle() -> void:
+	var ctx := _make_controller()
+	var crew := _register(ctx.tm, ctx.gb, _make_def("crew", "swordsman", 3, 3, 10, "slash"), Vector2i(3, 7))
+	ctx.ctrl._on_player_phase_started()
+	ctx.tm.mark_has_moved(crew)            # 已移动 → 无可达
+	ctx.ctrl.select_unit(crew)
 	assert_int(ctx.ctrl.get_mode()).is_equal(PlayerTurnController.Mode.IDLE)
 
 func test_select_enemy_unit_rejected() -> void:
