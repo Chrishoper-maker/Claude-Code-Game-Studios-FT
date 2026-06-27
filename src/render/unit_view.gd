@@ -24,6 +24,7 @@ var _mesh: MeshInstance3D
 var _move_tween: Tween
 var _hp_label: Label3D
 var _base_albedo: Color
+var _dimmed: bool = false   # 本回合已结束 → 变灰（end-unit-turn）
 
 # 由 UnitRenderer 生成时调用。
 func setup(unit_class: String, faction: String, inst_id: int, grid_pos: Vector2i) -> void:
@@ -100,7 +101,7 @@ func flash_hit() -> void:
 		return
 	mat.albedo_color = Color.WHITE
 	var tw := create_tween()
-	tw.tween_property(mat, "albedo_color", _base_albedo, 0.15)
+	tw.tween_property(mat, "albedo_color", _dimmed_albedo() if _dimmed else _base_albedo, 0.15)
 
 # 击倒退场：快速下沉 + 缩小后隐藏（KO 大字由 DamageFloater 同时弹出）。
 func set_downed() -> void:
@@ -116,3 +117,15 @@ func set_selected(selected: bool) -> void:
 	var mat := _mesh.material_override as StandardMaterial3D
 	if mat != null:
 		mat.emission_energy_multiplier = 0.6 if selected else 0.15
+
+# 本回合已结束 → 整体压暗 albedo（与 set_selected 的 emission 通道分离，不互相覆盖）。
+func set_dimmed(enabled: bool) -> void:
+	_dimmed = enabled
+	if _mesh == null:
+		return
+	var mat := _mesh.material_override as StandardMaterial3D
+	if mat != null:
+		mat.albedo_color = _dimmed_albedo() if enabled else _base_albedo
+
+func _dimmed_albedo() -> Color:
+	return _base_albedo.darkened(0.55)

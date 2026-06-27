@@ -22,8 +22,9 @@
 
 ### 3.2 已结束角色的再选中
 - 仍可点选（顶部信息条显示其 HP/行动点状态）。
-- 因三行动点已满，`select_unit` 不进 MOVE（has_moved 真）→ 进 IDLE；浮窗移/攻/技/爆/结束全禁用。
-- 即"可看不可动"，与现有"行动点自然用完"表现一致。
+- 因三行动点已满，`select_unit` 不进 MOVE（has_moved 真）→ 进 IDLE；浮窗**移/攻/技/结束**禁用。
+- 「爆发」例外：它是**阵营级羁绊资源**，受羁绊槽（is_full）门控，与"该单位是否结束"无关——`begin_burst_targeting` 另选 lead/partner 触发、不消耗当前选中单位行动点。故羁绊槽满时，即便选中的是已结束单位，浮窗「爆发」仍可用。
+- 即"该角色可看不可（自身）动"，与现有"行动点自然用完"表现一致；爆发不属于单一角色的行动点。
 
 ### 3.3 变灰标记（视觉）
 - `UnitView.set_dimmed(enabled: bool)`：`modulate` 置灰（如 Color(0.5,0.5,0.5)）/ 复原 Color.WHITE。
@@ -66,7 +67,7 @@
 ## 8. 验收标准（Acceptance Criteria）
 
 - **AC-1**：`end_unit_turn` 后选中单位 has_moved/has_acted/has_used_verb 全真、选中清空（-1）、mode IDLE，并 emit `unit_turn_ended(该id)`。
-- **AC-2**：已结束单位再 `select_unit` 后 `get_available_actions` 四项全 false。
+- **AC-2**：已结束单位再 `select_unit` 后 `get_available_actions` 的 move/attack/verb 三项（该角色自身行动点）全 false。burst 为阵营级羁绊资源、受羁绊槽门控、与单位结束无关——羁绊槽满时仍为 true。
 - **AC-3**：无选中 / 非我方回合调 `end_unit_turn` 无效果（不报错、不发信号）。
 - **AC-4**：BattleHUD 浮窗含「结束」按钮；`is_active()` 时可用、否则禁用。
 - **AC-5（视觉/F5-advisory）**：结束→单位变灰；新我方回合→恢复。
