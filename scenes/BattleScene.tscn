@@ -1,4 +1,4 @@
-[gd_scene load_steps=16 format=3]
+[gd_scene load_steps=17 format=3]
 
 [ext_resource type="Script" path="res://src/battle/battle_scene.gd" id="1_root"]
 [ext_resource type="Script" path="res://src/board/grid_board.gd" id="2_gb"]
@@ -15,6 +15,7 @@
 [ext_resource type="Script" path="res://src/ui/battle_hud.gd" id="13_hud"]
 [ext_resource type="Script" path="res://src/render/damage_floater.gd" id="14_df"]
 [ext_resource type="Script" path="res://src/fx/camera_shake.gd" id="15_cs"]
+[ext_resource type="Script" path="res://src/battle/set_effect_system.gd" id="16_ses"]
 
 [node name="BattleScene" type="Node3D"]
 script = ExtResource("1_root")
@@ -42,6 +43,9 @@ script = ExtResource("8_ab")
 
 [node name="BondGaugeBurst" type="Node" parent="."]
 script = ExtResource("9_bgb")
+
+[node name="SetEffectSystem" type="Node" parent="."]
+script = ExtResource("16_ses")
 
 [node name="EnemyAI" type="Node" parent="."]
 script = ExtResource("10_ai")

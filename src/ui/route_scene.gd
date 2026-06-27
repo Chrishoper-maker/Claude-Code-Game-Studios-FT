@@ -357,7 +357,17 @@ func _build_paperdoll(crew_id: String) -> Control:
 	for sid in counts:
 		var tier := RunManager.get_active_set_tier(crew_id, str(sid))
 		var head := Label.new()
-		head.text = "%s %d/9%s" % [str(sid), int(counts[sid]), "（已激活 %d）" % tier if tier > 0 else ""]
+		var line := "%s %d/9%s" % [str(sid), int(counts[sid]), "（已激活 %d）" % tier if tier > 0 else ""]
+		if tier > 0:
+			var descs: Array[String] = []
+			for t in [3, 6, 9]:
+				if int(counts[sid]) >= t:
+					var d := SetEffectCatalog.describe(str(sid), t)
+					if d != "":
+						descs.append(d)
+			if not descs.is_empty():
+				line += " ✦" + " / ".join(descs)
+		head.text = line
 		v.add_child(head)
 	var eq := RunManager.get_equipment_for(crew_id)
 	for slot in range(9):
