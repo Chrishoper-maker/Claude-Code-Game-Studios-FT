@@ -22,6 +22,10 @@ signal displacement_executed(unit_id: int, from_pos: Vector2i, to_pos: Vector2i)
 signal unit_moved(unit_id: int, from_pos: Vector2i, to_pos: Vector2i)
 signal terrain_changed(pos: Vector2i, type: String)
 
+# ── 寒霜/控制状态视觉（frost-battle-visuals）──
+signal frost_applied(unit_id: int, status: StringName)     # 施加寒霜成功（渲染层着色+标签+飘字）
+signal frost_resolved(unit_id: int, consumed: StringName)  # 敌回合开始消费寒霜（清标签；冻结额外跳过飘字）
+
 # ── 回合信号 ──
 signal battle_started()
 signal battle_won()

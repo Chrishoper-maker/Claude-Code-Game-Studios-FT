@@ -95,4 +95,5 @@ func _apply_frost(attacker: UnitInstance, target_id: int) -> void:
 	for tier in [9, 6, 3]:
 		if SetBonus.is_tier_active(attacker, "set_frost", tier):
 			_battle_resolution.apply_status(target_id, FROST_STATUS_BY_TIER[tier])
+			EventBus.frost_applied.emit(target_id, FROST_STATUS_BY_TIER[tier])
 			return
