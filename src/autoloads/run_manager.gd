@@ -569,12 +569,14 @@ func load_from_save_dict(d: Dictionary) -> void:
 					slots[edef.slot] = eid
 			if not slots.is_empty():
 				_roster_equipment[cid] = slots
-	# 战后候选恢复：eid 必须存在（_on_battle_won 已保证仅存活 roster 成员入列，无需再过滤）。
+	# 战后候选恢复：仅保留仍在 roster 的 crew（§5 spec 要求），且 eid 必须存在。
 	_pending_battle_equip.clear()
 	var pbe: Variant = d.get("pending_battle_equip", {})
 	if pbe is Dictionary:
 		for k in (pbe as Dictionary):
 			var cid := str(k)
+			if not roster_id_set.has(cid):
+				continue
 			var raw: Variant = (pbe as Dictionary)[k]
 			var eids: Array[String] = []
 			if raw is Array:

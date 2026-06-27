@@ -51,9 +51,13 @@ func test_missing_definition_dropped() -> void:
 
 func test_pending_battle_equip_roundtrips() -> void:
 	RunManager._autosave_enabled = false
+	RunManager._save_path = "user://test_run_pbe.json"
+	RunManager.start_run()
+	var real_id := RunManager.roster[0].id
 	RunManager._roster_equipment.clear()
-	RunManager._pending_battle_equip = {"c1": ["eq_ironwall_head", "eq_ironwall_armor"]}
+	RunManager._pending_battle_equip = {real_id: ["eq_ironwall_head", "eq_ironwall_armor"]}
 	var d := RunManager.to_save_dict()
 	RunManager._pending_battle_equip.clear()
 	RunManager.load_from_save_dict(d)
-	assert_bool(RunManager.get_pending_battle_equip().has("c1")).is_true()
+	assert_bool(RunManager.get_pending_battle_equip().has(real_id)).is_true()
+	RunManager.delete_save()
