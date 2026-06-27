@@ -71,14 +71,17 @@ func resolve_frost_for_turn(unit_id: int) -> Dictionary:
 	if get_unit_status(unit_id, STATUS_FROST_FREEZE):
 		_consume_status(unit_id, STATUS_FROST_FREEZE)
 		apply_status(unit_id, STATUS_FROST_IMMUNE)
+		EventBus.frost_resolved.emit(unit_id, STATUS_FROST_FREEZE)
 		return {"skip": true, "move_cap": 0}
 	if get_unit_status(unit_id, STATUS_FROST_ROOT):
 		_consume_status(unit_id, STATUS_FROST_ROOT)
 		apply_status(unit_id, STATUS_FROST_IMMUNE)
+		EventBus.frost_resolved.emit(unit_id, STATUS_FROST_ROOT)
 		return {"skip": false, "move_cap": 0}
 	if get_unit_status(unit_id, STATUS_FROST_SLOW):
 		_consume_status(unit_id, STATUS_FROST_SLOW)
 		apply_status(unit_id, STATUS_FROST_IMMUNE)
+		EventBus.frost_resolved.emit(unit_id, STATUS_FROST_SLOW)
 		return {"skip": false, "move_cap": u.get_move_range() / 2}   # int 除法 = floor
 	_consume_status(unit_id, STATUS_FROST_IMMUNE)   # 无寒霜 → 免疫到期
 	return {"skip": false, "move_cap": -1}

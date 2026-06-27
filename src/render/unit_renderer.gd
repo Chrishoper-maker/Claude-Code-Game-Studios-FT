@@ -17,6 +17,10 @@ func _ready() -> void:
 		EventBus.unit_turn_ended.connect(_on_unit_turn_ended)   # 该单位本回合结束 → 变灰
 	if not EventBus.player_phase_started.is_connected(_on_player_phase_started):
 		EventBus.player_phase_started.connect(_on_player_phase_started)  # 新我方回合 → 解除全部变灰
+	if not EventBus.frost_applied.is_connected(_on_frost_applied):
+		EventBus.frost_applied.connect(_on_frost_applied)      # 施加 → 着色+标签
+	if not EventBus.frost_resolved.is_connected(_on_frost_resolved):
+		EventBus.frost_resolved.connect(_on_frost_resolved)    # 消费 → 清标记
 
 func set_unit_max_hp(battle_id: int, max_hp: int) -> void:
 	_max_hp[battle_id] = max_hp
@@ -60,3 +64,13 @@ func _on_unit_downed(unit_id: int) -> void:
 	var v: UnitView = _views.get(unit_id, null)
 	if v != null:
 		v.set_downed()
+
+func _on_frost_applied(unit_id: int, status: StringName) -> void:
+	var v: UnitView = _views.get(unit_id, null)
+	if v != null:
+		v.set_frost_marker(status)
+
+func _on_frost_resolved(unit_id: int, _consumed: StringName) -> void:
+	var v: UnitView = _views.get(unit_id, null)
+	if v != null:
+		v.clear_frost_marker()
