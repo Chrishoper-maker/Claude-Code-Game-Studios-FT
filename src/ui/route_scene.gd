@@ -40,6 +40,15 @@ func _enter_deploy() -> void:
 	else:
 		_show_deploy_selection()
 
+# 把内容容器居中：包进撑满全屏的 CenterContainer 后 add 到本中枢。
+# 返回传入的内容容器（调用方继续往里加子节点）。
+func _add_centered(content: Control) -> Control:
+	var center := CenterContainer.new()
+	center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	add_child(center)
+	center.add_child(content)
+	return content
+
 # 清本中枢已建子节点 + 重置选人状态（避免阶段叠加显示）。
 func _clear_ui() -> void:
 	for child in get_children():
@@ -62,8 +71,7 @@ func _auto_deploy_all() -> void:
 func _show_deploy_selection() -> void:
 	_active_screen = "deploy"
 	var box := VBoxContainer.new()
-	add_child(box)
-	box.set_anchors_preset(Control.PRESET_CENTER)   # M-3：先 add_child 再设锚点
+	_add_centered(box)
 	var title := Label.new()
 	title.text = "选择出战船员（最多 %d 名）" % RunManager.DEPLOY_LIMIT
 	box.add_child(title)
@@ -115,8 +123,7 @@ func _notice_then(next: Callable) -> void:
 func _show_downed_notice(next: Callable) -> void:
 	_active_screen = "notice"
 	var box := VBoxContainer.new()
-	add_child(box)
-	box.set_anchors_preset(Control.PRESET_CENTER)
+	_add_centered(box)
 	var title := Label.new()
 	title.text = "折损通知"
 	box.add_child(title)
@@ -147,8 +154,7 @@ func _show_recruit_offers() -> void:
 	_clear_ui()
 	_active_screen = "recruit"
 	var box := VBoxContainer.new()
-	box.set_anchors_preset(Control.PRESET_CENTER)
-	add_child(box)
+	_add_centered(box)
 	var title := Label.new()
 	title.text = "选择一名船员加入"
 	box.add_child(title)
@@ -168,8 +174,7 @@ func _show_recruit_grant_notice(unit_id: String) -> void:
 	_clear_ui()
 	_active_screen = "recruit_grant"
 	var box := VBoxContainer.new()
-	add_child(box)
-	box.set_anchors_preset(Control.PRESET_CENTER)
+	_add_centered(box)
 	var title := Label.new()
 	title.text = "新船员入队，获得 3 件装备"
 	box.add_child(title)
@@ -188,8 +193,7 @@ func _show_route_offers() -> void:
 	_clear_ui()
 	_active_screen = "charting"
 	var box := VBoxContainer.new()
-	add_child(box)
-	box.set_anchors_preset(Control.PRESET_CENTER)
+	_add_centered(box)
 	var title := Label.new()
 	title.text = "选择下一处航点"
 	box.add_child(title)
@@ -238,8 +242,7 @@ func _equipment_summary(eq: EquipmentDefinition) -> String:
 func _show_run_end() -> void:
 	_active_screen = "run_end"
 	var box := VBoxContainer.new()
-	box.set_anchors_preset(Control.PRESET_CENTER)
-	add_child(box)
+	_add_centered(box)
 	var result := Label.new()
 	result.text = "出航成功!" if RunManager.last_run_won else "全员阵亡…"
 	box.add_child(result)
@@ -296,8 +299,7 @@ func _show_battle_equip() -> void:
 	_active_screen = "battle_equip"
 	var picked: Array[String] = []     # 本船员已选 eid
 	var row := HBoxContainer.new()
-	add_child(row)
-	row.set_anchors_preset(Control.PRESET_CENTER)
+	_add_centered(row)
 	# 左：候选
 	var left := VBoxContainer.new()
 	row.add_child(left)
