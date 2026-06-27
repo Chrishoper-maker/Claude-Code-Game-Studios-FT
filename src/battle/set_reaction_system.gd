@@ -6,6 +6,7 @@ extends Node
 
 const BLOODTHIRST_DIV_LOW := 4    # 嗜血 3 档：floor(dmg/4)
 const BLOODTHIRST_DIV_HIGH := 2   # 嗜血 6/9 档：floor(dmg/2)
+const THORNS_DMG := {3: 1, 6: 2, 9: 3}   # 荆棘反伤（按激活档取最高）
 
 var _grid_board: GridBoard
 var _turn_manager: TurnManager
@@ -24,6 +25,10 @@ func on_attack_executed(attacker_id: int, target_id: int, damage: int) -> void:
 	if attacker != null and attacker.is_alive:
 		if SetBonus.count_sets(attacker).has("set_bloodthirst"):
 			_apply_bloodthirst(attacker_id, attacker, damage)
+
+	var target := _turn_manager.get_unit(target_id)
+	if target != null and target.is_alive and SetBonus.count_sets(target).has("set_thorns"):
+		_apply_thorns(attacker_id, target)
 
 # 嗜血：攻击者回血 floor(dmg/4)（3档）或 floor(dmg/2)（6/9档）；9档相邻同阵营友军另 floor(dmg/4)。
 func _apply_bloodthirst(attacker_id: int, attacker: UnitInstance, damage: int) -> void:
@@ -46,3 +51,13 @@ func _adjacent_allies(source: UnitInstance) -> Array[int]:
 				and GridBoard.chebyshev(source.grid_position, u.grid_position) <= 1:
 			out.append(id)
 	return out
+
+# 荆棘：被命中后对攻击者反弹固定伤害（取最高激活档；可致死，不发 attack_executed）。
+func _apply_thorns(attacker_id: int, target: UnitInstance) -> void:
+	var dmg := 0
+	for t in [9, 6, 3]:
+		if SetBonus.is_tier_active(target, "set_thorns", t):
+			dmg = int(THORNS_DMG[t])
+			break
+	if dmg > 0:
+		_battle_resolution.apply_reaction_damage(attacker_id, dmg)
