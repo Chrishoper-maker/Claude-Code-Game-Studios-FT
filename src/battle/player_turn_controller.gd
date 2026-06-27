@@ -83,12 +83,16 @@ func cancel() -> void:
 	_set_mode(Mode.IDLE)
 
 # 选中一个己方单位指挥（点击空闲态下的己方单位格触发）。
+# #1：选中即自动展示移动范围（若还能移动），免去再点「移动」。
 func select_unit(unit_id: int) -> void:
 	var u: UnitInstance = _turn_manager.get_unit(unit_id)
 	if u == null or not u.is_alive or u.definition.faction != "crew":
 		return
 	_selected_unit_id = unit_id
-	_set_mode(Mode.IDLE)
+	if not u.has_moved and not _grid_board.get_reachable_cells(u.grid_position, u.get_move_range()).is_empty():
+		set_mode(Mode.MOVE)
+	else:
+		_set_mode(Mode.IDLE)
 
 func handle_cell_click(cell: Vector2i) -> void:
 	if not _phase_active:
