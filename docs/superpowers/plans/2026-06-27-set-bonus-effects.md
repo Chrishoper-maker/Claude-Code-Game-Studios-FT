@@ -173,6 +173,7 @@ func before_test() -> void:
 func after_test() -> void:
 	_tm.free()
 	_br.free()
+	_gb.free()   # GridBoard 是 Node，未入树也须 free 防孤儿
 
 func _enemy_def() -> UnitDefinition:
 	for d in UnitDataManager.get_all_units():
@@ -375,7 +376,7 @@ func before_test() -> void:
 	_ses.setup(_gb, _tm, _br)
 
 func after_test() -> void:
-	_tm.free(); _br.free(); _ses.free()
+	_tm.free(); _br.free(); _ses.free(); _gb.free()   # GridBoard 是 Node，未入树也须 free 防孤儿
 
 func _crew_def() -> UnitDefinition:
 	for d in UnitDataManager.get_all_units():
@@ -543,7 +544,7 @@ func before_test() -> void:
 	_br.setup(_gb, _tm); _ses.setup(_gb, _tm, _br)
 
 func after_test() -> void:
-	_tm.free(); _br.free(); _ses.free()
+	_tm.free(); _br.free(); _ses.free(); _gb.free()   # GridBoard 是 Node，未入树也须 free 防孤儿
 
 func _crew_def() -> UnitDefinition:
 	for d in UnitDataManager.get_all_units():
@@ -648,7 +649,7 @@ func before_test() -> void:
 	_br.setup(_gb, _tm); _ses.setup(_gb, _tm, _br)
 
 func after_test() -> void:
-	_tm.free(); _br.free(); _ses.free()
+	_tm.free(); _br.free(); _ses.free(); _gb.free()   # GridBoard 是 Node，未入树也须 free 防孤儿
 
 func _crew_def() -> UnitDefinition:
 	for d in UnitDataManager.get_all_units():
@@ -763,7 +764,7 @@ func before_test() -> void:
 	_br.setup(_gb, _tm); _ses.setup(_gb, _tm, _br)
 
 func after_test() -> void:
-	_tm.free(); _br.free(); _ses.free()
+	_tm.free(); _br.free(); _ses.free(); _gb.free()   # GridBoard 是 Node，未入树也须 free 防孤儿
 
 func _crew_def() -> UnitDefinition:
 	for d in UnitDataManager.get_all_units():
@@ -984,7 +985,7 @@ func before_test() -> void:
 	_br.setup(_gb, _tm); _ses.setup(_gb, _tm, _br)
 
 func after_test() -> void:
-	_tm.free(); _br.free(); _ses.free()
+	_tm.free(); _br.free(); _ses.free(); _gb.free()   # GridBoard 是 Node，未入树也须 free 防孤儿
 
 func _def(is_crew: bool) -> UnitDefinition:
 	for d in UnitDataManager.get_all_units():
