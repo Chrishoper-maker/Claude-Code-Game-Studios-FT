@@ -122,7 +122,8 @@ func load_map_definition(map_def: MapDefinition, grid_board: GridBoard, turn_man
 	_deployed_ids = []
 	for slot in map_def.enemy_roster:
 		var def: UnitDefinition = lookup.call(slot.unit_definition_id)
-		var inst := UnitInstance.from_definition(def)
+		var loadout := EnemyLoadout.for_enemy(slot.behavior_type, map_def.island_tier)
+		var inst := UnitInstance.from_definition(def, loadout)
 		inst.behavior_type = slot.behavior_type
 		inst.home_pos = slot.home_pos
 		inst.grid_position = slot.grid_position
