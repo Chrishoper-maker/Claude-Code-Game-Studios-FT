@@ -31,3 +31,13 @@ func test_frost_label_has_three_tiers() -> void:
 	assert_str(UnitView.FROST_LABEL[BattleResolution.STATUS_FROST_SLOW]).is_equal("滞步")
 	assert_str(UnitView.FROST_LABEL[BattleResolution.STATUS_FROST_ROOT]).is_equal("冰封")
 	assert_str(UnitView.FROST_LABEL[BattleResolution.STATUS_FROST_FREEZE]).is_equal("冻结")
+
+func test_renderer_tints_on_frost_applied_and_clears_on_resolved() -> void:
+	var r: UnitRenderer = auto_free(UnitRenderer.new())
+	add_child(r)
+	var v := r.spawn_view("swordsman", "enemy", 9, Vector2i(0, 0))
+	var base := _albedo(v)
+	EventBus.frost_applied.emit(9, BattleResolution.STATUS_FROST_FREEZE)
+	assert_object(_albedo(v)).is_not_equal(base)     # 着色
+	EventBus.frost_resolved.emit(9, BattleResolution.STATUS_FROST_FREEZE)
+	assert_object(_albedo(v)).is_equal(base)          # 复原
