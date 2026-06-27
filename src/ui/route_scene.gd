@@ -224,6 +224,9 @@ func _enemy_summary(map_def: MapDefinition) -> String:
 # 装备白盒摘要："名（品阶）+N攻 +N血 ..."（仅列非零增量）。
 const _RARITY_LABELS := ["普通", "稀有", "史诗", "稀世", "传奇"]
 const _SLOT_NOUNS := ["主武器","副武器","头","护甲","手","腿","靴","戒指","项链"]
+## 人形布局顺序（3 列 4 行共 12 格；-1 为空位占格）。
+## 行：空/头/项链 — 主武器/护甲/副武器 — 手/腿/戒指 — 空/靴/空
+const _DOLL_LAYOUT := [-1, 2, 8, 0, 3, 1, 4, 5, 7, -1, 6, -1]
 
 func _equipment_summary(eq: EquipmentDefinition) -> String:
 	var parts: Array[String] = []
@@ -375,14 +378,24 @@ func _build_paperdoll(crew_id: String) -> Control:
 				line += " ✦" + " / ".join(descs)
 		head.text = line
 		v.add_child(head)
+	# 9 槽身体布局（3 列；-1 为空位占格保持对齐）。
+	# 行：头/项链 — 主武器/护甲/副武器 — 手/腿/戒指 — 靴
 	var eq := RunManager.get_equipment_for(crew_id)
-	for slot in range(9):
-		var l := Label.new()
-		var def: EquipmentDefinition = eq.get(slot, null)
-		if def != null:
-			l.text = "%s：%s〔%s〕" % [_SLOT_NOUNS[slot], def.display_name, def.set_id]
-			l.add_theme_color_override("font_color", EquipmentDefinition.rarity_color(def.rarity))
+	var grid := GridContainer.new()
+	grid.columns = 3
+	for slot: int in _DOLL_LAYOUT:
+		var cell := Label.new()
+		if slot == -1:
+			cell.text = ""
 		else:
-			l.text = "%s：空" % _SLOT_NOUNS[slot]
-		v.add_child(l)
+			var def: EquipmentDefinition = eq.get(slot, null)
+			if def != null:
+				cell.text = "%s\n%s〔%s〕" % [_SLOT_NOUNS[slot], def.display_name, def.set_id]
+				cell.add_theme_color_override("font_color", EquipmentDefinition.rarity_color(def.rarity))
+			else:
+				cell.text = "%s\n空" % _SLOT_NOUNS[slot]
+		cell.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		cell.custom_minimum_size = Vector2(120, 48)
+		grid.add_child(cell)
+	v.add_child(grid)
 	return v
