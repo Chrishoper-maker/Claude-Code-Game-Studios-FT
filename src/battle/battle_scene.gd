@@ -13,6 +13,7 @@ extends Node3D
 @onready var _battle_map: BattleMap = $BattleMap
 @onready var _bond_gauge_burst: BondGaugeBurst = $BondGaugeBurst
 @onready var _set_effect_system: SetEffectSystem = $SetEffectSystem
+@onready var _set_reaction_system: SetReactionSystem = $SetReactionSystem
 @onready var _board_highlighter: BoardHighlighter = $BoardHighlighter
 @onready var _player_turn_controller: PlayerTurnController = $PlayerTurnController
 @onready var _battle_hud: BattleHUD = $HUDLayer/BattleHUD
@@ -28,6 +29,7 @@ func _ready() -> void:
 	_battle_map.setup(_grid_board, _turn_manager)
 	_bond_gauge_burst.setup(_grid_board, _turn_manager, _battle_resolution)  # 订阅充能信号
 	_set_effect_system.setup(_grid_board, _turn_manager, _battle_resolution)
+	_set_reaction_system.setup(_grid_board, _turn_manager, _battle_resolution)
 	_player_turn_controller.setup(_turn_manager, _grid_board, _battle_resolution, _bond_gauge_burst, _board_highlighter, _battle_hud)
 	_battle_hud.setup(_player_turn_controller, _turn_manager)
 	_damage_floater.setup(_unit_renderer, func(id: int) -> String: return _faction_of(id))
