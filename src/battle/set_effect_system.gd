@@ -31,6 +31,7 @@ func on_round_started(_round_count: int) -> void:
 				"set_ironwall": _apply_ironwall(uid, unit)
 				"set_berserker": _apply_berserker(uid, unit)
 				"set_healer": _apply_healer(uid, unit)
+				"set_navigator": _apply_navigator(uid, unit)
 				_: pass
 
 # 铁壁：3=GUARDED（升级轴），9=SET_GUARD（取代 GUARDED）；6=+3自愈（新增轴）。
@@ -58,6 +59,15 @@ func _apply_healer(uid: int, unit: UnitInstance) -> void:
 	if SetBonus.is_tier_active(unit, "set_healer", 6):
 		for ally_id in _same_faction_within_ids(unit, NAVIGATOR_RADIUS):
 			_battle_resolution.execute_burst_heal(ally_id, amount)
+
+# 航海：半径 9=2 否则=1（升级轴）；相邻友军得 AURA，6 档起也得 GUARDED（新增轴）。
+func _apply_navigator(_uid: int, unit: UnitInstance) -> void:
+	var radius := NAVIGATOR_RADIUS_HIGH if SetBonus.is_tier_active(unit, "set_navigator", 9) else NAVIGATOR_RADIUS
+	var also_guard := SetBonus.is_tier_active(unit, "set_navigator", 6)
+	for ally_id in _same_faction_within_ids(unit, radius):
+		_battle_resolution.apply_status(ally_id, BattleResolution.STATUS_AURA)
+		if also_guard:
+			_battle_resolution.apply_status(ally_id, BattleResolution.STATUS_GUARDED)
 
 # 全体存活 battle_id（两阵营）。
 func _all_alive_ids() -> Array[int]:
