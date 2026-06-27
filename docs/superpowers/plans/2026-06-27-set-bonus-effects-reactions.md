@@ -25,7 +25,7 @@
 ## 数值（自主拟定，待 playtest 校）
 
 - 嗜血：3=floor(dmg/4)、6/9=floor(dmg/2)；9 档相邻八向同阵营友军另 +floor(dmg/4)。
-- 荆棘：3/6/9 → 反伤 2/4/6（取最高激活档）。
+- 荆棘：3/6/9 → 反伤 1/2/3（取最高激活档；2026-06-27 用户逐套复审下调，原拟 2/4/6）。
 - 处决：3/6/9 → 阈值 3/5/7、追加 3/5/7（取最高激活档）；命中后 target.is_alive 且 hp≤阈值才触发。
 
 ## File Structure
@@ -308,14 +308,14 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 
 **Interfaces:**
 - Consumes: 框架 + `BattleResolution.apply_reaction_damage`（Task 1）。
-- Produces: 私有 `_apply_thorns`；`on_attack_executed` 加目标侧荆棘分支；常量 `THORNS_DMG`（Dictionary {3:2,6:4,9:6}）。
+- Produces: 私有 `_apply_thorns`；`on_attack_executed` 加目标侧荆棘分支；常量 `THORNS_DMG`（Dictionary {3:1,6:2,9:3}）。
 
 - [ ] **Step 1: 写失败测试**
 
 创建 `tests/unit/set_reactions/set_reaction_thorns_test.gd`（复用 Task 2 fixture 结构）：
 
 ```gdscript
-# 荆棘套：被命中后对攻击者反伤 2/4/6；反伤不发 attack_executed（防递归）。
+# 荆棘套：被命中后对攻击者反伤 1/2/3；反伤不发 attack_executed（防递归）。
 extends GdUnitTestSuite
 
 var _gb: GridBoard
@@ -347,19 +347,19 @@ func _register_set(set_short: String, k: int) -> int:
 func _register_plain() -> int:
 	return _tm.register_unit(UnitInstance.from_definition(_crew_def(), {}))
 
-func test_thorns_3_reflects_two() -> void:
+func test_thorns_3_reflects_one() -> void:
 	var aid := _register_plain()
 	var tid := _register_set("thorns", 3)
 	var a := _tm.get_unit(aid); a.current_hp = 10
 	_srs.on_attack_executed(aid, tid, 5)
-	assert_int(a.current_hp).is_equal(8)   # 反伤 2
+	assert_int(a.current_hp).is_equal(9)   # 反伤 1
 
-func test_thorns_9_reflects_six() -> void:
+func test_thorns_9_reflects_three() -> void:
 	var aid := _register_plain()
 	var tid := _register_set("thorns", 9)
 	var a := _tm.get_unit(aid); a.current_hp = 10
 	_srs.on_attack_executed(aid, tid, 5)
-	assert_int(a.current_hp).is_equal(4)   # 反伤 6
+	assert_int(a.current_hp).is_equal(7)   # 反伤 3
 
 func test_thorns_reflection_emits_no_attack_executed() -> void:
 	var aid := _register_plain()
@@ -381,7 +381,7 @@ Expected: FAIL（无荆棘分支 → 攻击者 hp 不变）。
 `set_reaction_system.gd` 常量区加：
 
 ```gdscript
-const THORNS_DMG := {3: 2, 6: 4, 9: 6}   # 荆棘反伤（按激活档取最高）
+const THORNS_DMG := {3: 1, 6: 2, 9: 3}   # 荆棘反伤（按激活档取最高）
 ```
 
 `on_attack_executed` 末尾加目标侧分支：
@@ -415,7 +415,7 @@ Expected: PASS (3/3)。
 
 ```bash
 git add src/battle/set_reaction_system.gd tests/unit/set_reactions/set_reaction_thorns_test.gd
-git commit -m "feat(battle): thorns set (reflect 2/4/6, anti-recursion)
+git commit -m "feat(battle): thorns set (reflect 1/2/3, anti-recursion)
 
 Story: set-bonus-effects-reactions
 Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
@@ -581,7 +581,7 @@ Expected: FAIL（三套描述为 ""）。
 
 ```gdscript
 	"set_bloodthirst": {3: "吸血¼", 6: "吸血½", 9: "吸血½·外溢"},
-	"set_thorns": {3: "反伤2", 6: "反伤4", 9: "反伤6"},
+	"set_thorns": {3: "反伤1", 6: "反伤2", 9: "反伤3"},
 	"set_executioner": {3: "斩杀残血≤3", 6: "斩杀残血≤5", 9: "斩杀残血≤7"},
 ```
 
@@ -663,7 +663,7 @@ func test_attack_into_thorns_reflects_without_recursion() -> void:
 	var tid := _register_set(tdef, "thorns", 3, Vector2i(1, 0))
 	var a := _tm.get_unit(aid); a.current_hp = 10
 	_br.execute_attack(aid, tid)
-	assert_int(a.current_hp).is_equal(8)   # 反伤2，且无递归（若递归会多次扣）
+	assert_int(a.current_hp).is_equal(9)   # 反伤1，且无递归（若递归会多次扣）
 ```
 
 - [ ] **Step 2: 跑该测试确认通过**

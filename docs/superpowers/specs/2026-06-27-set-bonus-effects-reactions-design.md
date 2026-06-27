@@ -41,9 +41,9 @@
 - 升级轴=自身吸血比例（3→6 取最高）；新增轴=9 档的相邻外溢。
 
 **荆棘 set_thorns（看目标；被普攻/斩命中后反弹）**
-- 3 件：对攻击者造成 `2` 点反伤（`apply_reaction_damage`）。
-- 6 件：升级为 `4` 点。
-- 9 件：升级为 `6` 点。
+- 3 件：对攻击者造成 `1` 点反伤（`apply_reaction_damage`）。
+- 6 件：升级为 `2` 点。
+- 9 件：升级为 `3` 点。
 - 纯升级轴（取最高固定值）。反伤可击杀攻击者（走 resolve_unit_downed）。攻击者已 Downed（同一击连锁）则跳过。
 
 **处决 set_executioner（看攻击者；命中后斩杀残血）**
@@ -54,7 +54,7 @@
 - 纯升级轴（阈值与追加同档取最高）。目标已被本次普攻打死则无需斩杀（is_alive 守卫）。
 
 ### 3.4 纸娃娃效果标记
-- 扩展 ②b-2a 的 `SetEffectCatalog.describe(set_id, tier)`：补 set_bloodthirst / set_thorns / set_executioner 各 {3,6,9} 的中文描述（如 嗜血「吸血¼/吸血½/外溢吸血」、荆棘「反伤2/4/6」、处决「斩杀残血(≤3)/(≤5)/(≤7)」）。
+- 扩展 ②b-2a 的 `SetEffectCatalog.describe(set_id, tier)`：补 set_bloodthirst / set_thorns / set_executioner 各 {3,6,9} 的中文描述（如 嗜血「吸血¼/吸血½/外溢吸血」、荆棘「反伤1/2/3」、处决「斩杀残血(≤3)/(≤5)/(≤7)」）。
 - 纸娃娃逻辑（②b-2a）已对所有 set_id 通用，补描述后自动显示。
 
 ### 3.5 战斗装配
@@ -63,7 +63,7 @@
 ## 4. 公式（Formulas）
 
 - 嗜血回血：`heal = floor(damage / 4)`（3 档）/`floor(damage / 2)`（6/9 档）；9 档相邻另回 `floor(damage / 4)`。
-- 荆棘反伤：按激活档 3/6/9 → 反伤 2/4/6（取最高激活档对应值）。
+- 荆棘反伤：按激活档 3/6/9 → 反伤 1/2/3（取最高激活档对应值）。
 - 处决：`active tier T` → 阈值/追加查表（3/6/9 → 3/5/7）；触发条件 `t.is_alive and t.current_hp <= 阈值`。
 - 反应伤害：`apply_reaction_damage(tid, amount)`：`new_hp = max(0, hp - amount)`；emit `damage_dealt`；`if new_hp==0: resolve_unit_downed(tid)`；**不** emit `attack_executed`。
 
@@ -90,14 +90,14 @@
 ## 7. 可调旋钮（Tuning Knobs）
 
 - 嗜血比例（¼/½）、9 档相邻外溢比例。
-- 荆棘反伤值 [2,4,6]。
+- 荆棘反伤值 [1,2,3]。
 - 处决阈值与追加 [3,5,7]。
 - 各值集中为 SetReactionSystem 具名常量。
 
 ## 8. 验收标准（Acceptance Criteria）
 
 - **AC-1（嗜血）**：攻击者持嗜血 3 件，execute_attack 命中造成 N 伤后攻击者 HP +floor(N/4)（钳 max）；6 件 +floor(N/2)；9 件相邻友军另 +floor(N/4)。
-- **AC-2（荆棘）**：目标持荆棘 3/6/9 件，被普攻命中后攻击者各受 2/4/6 反伤；反伤致死走 unit_downed；反伤不再触发攻击者侧任何反应（无 attack_executed）。
+- **AC-2（荆棘）**：目标持荆棘 3/6/9 件，被普攻命中后攻击者各受 1/2/3 反伤；反伤致死走 unit_downed；反伤不再触发攻击者侧任何反应（无 attack_executed）。
 - **AC-3（处决）**：攻击者持处决，命中后目标存活且 hp≤阈值(3/5/7) → 追加 3/5/7 斩杀（可致死）；目标已被普攻打死则不追加；hp>阈值不触发。
 - **AC-4（防递归）**：apply_reaction_damage 不 emit attack_executed（断言反应不引发二次反应/羁绊充能）。
 - **AC-5（阵营无关）**：敌方 faction 持反应套的单位同样触发（构造敌方带装备 instance 验证）。
@@ -117,7 +117,7 @@
 无人模式下我自主拟定的、用户可能想调的点：
 1. **本批含全部三套**（嗜血/荆棘/处决），而非拆分——因三套都能做成干净的 attack_executed 反应型，架构一致、低风险。
 2. **处决用「命中后斩杀残血」而非「击杀不消耗行动」**——后者需 unit_downed 携带击杀者（现无）+ 回退行动点，复杂且侵入；前者是干净反应型。
-3. **数值**：嗜血 ¼/½ + 9档相邻¼；荆棘 2/4/6；处决 阈值&追加 3/5/7。均保守整数，待 playtest 校。
+3. **数值**（2026-06-27 用户逐套复审定稿）：嗜血 ¼/½ + 9档相邻¼（默认）；荆棘 **1/2/3**（用户下调，原拟 2/4/6）；处决 阈值&追加 3/5/7（默认）。均保守整数，待 playtest 校。
 4. **新增 `SetReactionSystem`** 而非扩 SetEffectSystem 订阅 attack_executed——保持「回合增益 vs 攻击反应」职责分离。
 5. **新增 `BattleResolution.apply_reaction_damage`**（不发 attack_executed）作为反应伤害唯一入口，防递归。
 6. 反应**每命中触发**（斩多目标逐个），嗜血按每次伤害累计回血。
