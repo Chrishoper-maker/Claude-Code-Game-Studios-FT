@@ -17,6 +17,10 @@ const GUNNER_MIN_RANGE := 2       # 炮手普通攻击最小曼哈顿射程（Ru
 const DOWNED_SENTINEL := Vector2i(-1, -1)
 const STATUS_GUARDED := &"GUARDED"
 const STATUS_AURA := &"AURA_BONUS"
+const STATUS_FRENZY := &"FRENZY"               # 套装攻击增益 +2（攻击后消耗）
+const STATUS_FRENZY_PERSIST := &"FRENZY_PERSIST"  # 套装攻击增益 +2（本轮不消耗）
+const STATUS_SET_GUARD := &"SET_GUARD"         # 套装减半（本轮不消耗）
+const FRENZY_VALUE := 2                         # 狂热增益
 
 var _grid_board: GridBoard
 var _turn_manager: TurnManager
@@ -26,6 +30,8 @@ var _unit_statuses: Dictionary = {}        # int unit_id → Dictionary[StringNa
 func setup(grid_board: GridBoard, turn_manager: TurnManager) -> void:
 	_grid_board = grid_board
 	_turn_manager = turn_manager
+	if not EventBus.round_ended.is_connected(clear_round_statuses):
+		EventBus.round_ended.connect(clear_round_statuses)
 
 # ── 状态（ADR D6）──
 func get_unit_status(unit_id: int, status: StringName) -> bool:
@@ -40,10 +46,13 @@ func _consume_status(unit_id: int, status: StringName) -> void:
 	if _unit_statuses.has(unit_id):
 		_unit_statuses[unit_id].erase(status)
 
-# ROUND_END 仅清 GUARDED（AURA_BONUS 跨轮保留）。
+# ROUND_END 清 GUARDED/FRENZY/FRENZY_PERSIST/SET_GUARD（AURA_BONUS 跨轮保留）。
 func clear_round_statuses() -> void:
 	for id in _unit_statuses:
 		_unit_statuses[id].erase(STATUS_GUARDED)
+		_unit_statuses[id].erase(STATUS_FRENZY)
+		_unit_statuses[id].erase(STATUS_FRENZY_PERSIST)
+		_unit_statuses[id].erase(STATUS_SET_GUARD)
 
 # ── 修正器注入（Rule 10 / ADR D5 直连例外）──
 func register_attack_modifier(attacker_id: int, bonus: int) -> void:
@@ -89,17 +98,30 @@ func execute_attack(attacker_id: int, target_id: int) -> void:
 	if new_hp == 0:                                                    # 11
 		resolve_unit_downed(target_id)
 
+# 攻击增益（不消耗，仅查询）：FRENZY/PERSIST→+2 取代 AURA→+1。
+func _peek_attack_bonus(attacker_id: int) -> int:
+	if get_unit_status(attacker_id, STATUS_FRENZY) or get_unit_status(attacker_id, STATUS_FRENZY_PERSIST):
+		return FRENZY_VALUE
+	if get_unit_status(attacker_id, STATUS_AURA):
+		return AURA_VALUE
+	return 0
+
+# 攻击后消耗一次性增益（FRENZY + AURA；PERSIST 不消耗）。
+func _consume_attack_bonus(attacker_id: int) -> void:
+	_consume_status(attacker_id, STATUS_FRENZY)
+	_consume_status(attacker_id, STATUS_AURA)
+
 # 伤害管线（ADR D2）：base + min(modifier, cap) + 独立 aura（不受 cap）。消耗 AURA_BONUS。
 func _compute_attack_damage(attacker_id: int, a: UnitInstance) -> int:
 	var modifier_sum := mini(_pending_modifiers.get(attacker_id, 0), MAX_MODIFIER_SUM)
-	var aura := 0
-	if get_unit_status(attacker_id, STATUS_AURA):
-		aura = AURA_VALUE
-		_consume_status(attacker_id, STATUS_AURA)
-	return a.get_base_damage() + modifier_sum + aura
+	var bonus := _peek_attack_bonus(attacker_id)
+	_consume_attack_bonus(attacker_id)
+	return a.get_base_damage() + modifier_sum + bonus
 
-# GUARDED 减伤（floor）+ 消耗（不区分来源阵营）。
+# GUARDED/SET_GUARD 减伤（floor）；SET_GUARD 不消耗，GUARDED 消耗。
 func _apply_guard(target_id: int, dmg: int) -> int:
+	if get_unit_status(target_id, STATUS_SET_GUARD):
+		return dmg / GUARD_DIVISOR            # 套装减半，不消耗
 	if get_unit_status(target_id, STATUS_GUARDED):
 		_consume_status(target_id, STATUS_GUARDED)
 		return dmg / GUARD_DIVISOR
@@ -134,8 +156,7 @@ func execute_slash(attacker_id: int) -> void:
 	var a := _turn_manager.get_unit(attacker_id)
 	EventBus.attack_initiated.emit(str(attacker_id), "slash")  # 同步：羁绊在回调注入
 	var modifier_sum := mini(_pending_modifiers.get(attacker_id, 0), MAX_MODIFIER_SUM)
-	var has_aura := get_unit_status(attacker_id, STATUS_AURA)
-	var aura := AURA_VALUE if has_aura else 0
+	var aura := _peek_attack_bonus(attacker_id)
 	var targets: Array[int] = []
 	for nid in _grid_board.get_adjacents(a.grid_position):
 		var n := _turn_manager.get_unit(nid)
@@ -154,8 +175,7 @@ func execute_slash(attacker_id: int) -> void:
 			if new_hp == 0:
 				resolve_unit_downed(tid)
 	_pending_modifiers.erase(attacker_id)            # ⑦
-	if has_aura:                                      # ⑧
-		_consume_status(attacker_id, STATUS_AURA)
+	_consume_attack_bonus(attacker_id)               # ⑧
 	EventBus.slash_executed.emit(str(attacker_id), targets, pre_guard)
 	_turn_manager.mark_has_used_verb(attacker_id)
 
