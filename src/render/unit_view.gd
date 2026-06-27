@@ -18,6 +18,13 @@ const CLASS_VISUAL := {
 const CREW_RIM := Color("#FFE0B0")    # crew 暖 rim（emission 近似）
 const ENEMY_RIM := Color("#7FAFFF")   # enemy 冷 rim
 const ENEMY_DARKEN := 0.3             # enemy albedo 压暗比例（art-bible 4.5）
+const FROST_TINT := Color("#7FD8FF")   # 寒霜冰蓝（着色 lerp / 飘字纯色，spec §4）
+const FROST_TINT_MIX := 0.5            # 基色↔冰色混合比例
+const FROST_LABEL := {                 # status → 头顶标签文案（DamageFloater 复用，飘字另加 "!"）
+	&"FROST_SLOW": "滞步",
+	&"FROST_ROOT": "冰封",
+	&"FROST_FREEZE": "冻结",
+}
 
 var instance_id: int
 var _mesh: MeshInstance3D
@@ -25,6 +32,8 @@ var _move_tween: Tween
 var _hp_label: Label3D
 var _base_albedo: Color
 var _dimmed: bool = false   # 本回合已结束 → 变灰（end-unit-turn）
+var _frost_status: StringName = &""   # 当前寒霜标记（&"" = 无）
+var _frost_label: Label3D             # 头顶寒霜标签
 
 # 由 UnitRenderer 生成时调用。
 func setup(unit_class: String, faction: String, inst_id: int, grid_pos: Vector2i) -> void:
@@ -92,7 +101,7 @@ func move_to(grid_pos: Vector2i) -> void:
 	_move_tween = create_tween()
 	_move_tween.tween_property(self, "global_position", target, MOVE_TWEEN_DURATION)
 
-# 命中闪白再回原色（~0.15s）。由 UnitRenderer 在 damage_dealt 时调用。
+# 命中闪白再回当前正色（~0.15s）。由 UnitRenderer 在 damage_dealt 时调用。
 func flash_hit() -> void:
 	if _mesh == null:
 		return
@@ -101,7 +110,7 @@ func flash_hit() -> void:
 		return
 	mat.albedo_color = Color.WHITE
 	var tw := create_tween()
-	tw.tween_property(mat, "albedo_color", _dimmed_albedo() if _dimmed else _base_albedo, 0.15)
+	tw.tween_property(mat, "albedo_color", _current_albedo(), 0.15)
 
 # 击倒退场：快速下沉 + 缩小后隐藏（KO 大字由 DamageFloater 同时弹出）。
 func set_downed() -> void:
@@ -121,11 +130,44 @@ func set_selected(selected: bool) -> void:
 # 本回合已结束 → 整体压暗 albedo（与 set_selected 的 emission 通道分离，不互相覆盖）。
 func set_dimmed(enabled: bool) -> void:
 	_dimmed = enabled
+	_apply_albedo()
+
+# albedo 通道优先级：frost > dimmed > base（spec §3.3）。
+func _current_albedo() -> Color:
+	if _frost_status != &"":
+		return _base_albedo.lerp(FROST_TINT, FROST_TINT_MIX)
+	if _dimmed:
+		return _base_albedo.darkened(0.55)
+	return _base_albedo
+
+func _apply_albedo() -> void:
 	if _mesh == null:
 		return
 	var mat := _mesh.material_override as StandardMaterial3D
 	if mat != null:
-		mat.albedo_color = _dimmed_albedo() if enabled else _base_albedo
+		mat.albedo_color = _current_albedo()
 
-func _dimmed_albedo() -> Color:
-	return _base_albedo.darkened(0.55)
+# 设寒霜标记：冰蓝着色 + 头顶标签（滞步/冰封/冻结）。faction 无关，仅按信号驱动。
+func set_frost_marker(status: StringName) -> void:
+	_frost_status = status
+	_apply_albedo()
+	if _frost_label == null:
+		_frost_label = Label3D.new()
+		_frost_label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+		_frost_label.no_depth_test = true
+		_frost_label.pixel_size = 0.006
+		_frost_label.font_size = 40
+		_frost_label.outline_size = 10
+		_frost_label.outline_modulate = Color.BLACK
+		_frost_label.modulate = FROST_TINT
+		_frost_label.position = Vector3(0, 1.6, 0)   # HP 标签(1.95)下方
+		add_child(_frost_label)
+	_frost_label.text = FROST_LABEL.get(status, "")
+	_frost_label.visible = true
+
+# 清寒霜标记：复原 albedo + 隐藏标签。
+func clear_frost_marker() -> void:
+	_frost_status = &""
+	_apply_albedo()
+	if _frost_label != null:
+		_frost_label.visible = false
