@@ -8,6 +8,11 @@ const BLOODTHIRST_DIV_LOW := 4    # 嗜血 3 档：floor(dmg/4)
 const BLOODTHIRST_DIV_HIGH := 2   # 嗜血 6/9 档：floor(dmg/2)
 const THORNS_DMG := {3: 1, 6: 2, 9: 3}   # 荆棘反伤（按激活档取最高）
 const EXECUTIONER := {3: {"thr": 3, "dmg": 3}, 6: {"thr": 5, "dmg": 5}, 9: {"thr": 7, "dmg": 7}}
+const FROST_STATUS_BY_TIER := {
+	9: BattleResolution.STATUS_FROST_FREEZE,
+	6: BattleResolution.STATUS_FROST_ROOT,
+	3: BattleResolution.STATUS_FROST_SLOW,
+}
 
 var _grid_board: GridBoard
 var _turn_manager: TurnManager
@@ -20,7 +25,7 @@ func setup(grid_board: GridBoard, turn_manager: TurnManager, battle_resolution: 
 	if not EventBus.attack_executed.is_connected(on_attack_executed):
 		EventBus.attack_executed.connect(on_attack_executed)
 
-# 命中后：攻击者侧（嗜血/处决）+ 目标侧（荆棘）反应。
+# 命中后：攻击者侧（嗜血/处决/寒霜）+ 目标侧（荆棘）反应。
 func on_attack_executed(attacker_id: int, target_id: int, damage: int) -> void:
 	var attacker := _turn_manager.get_unit(attacker_id)
 	var target := _turn_manager.get_unit(target_id)
@@ -29,6 +34,8 @@ func on_attack_executed(attacker_id: int, target_id: int, damage: int) -> void:
 			_apply_bloodthirst(attacker_id, attacker, damage)
 		if SetBonus.count_sets(attacker).has("set_executioner"):
 			_apply_executioner(attacker, target_id)
+		if SetBonus.count_sets(attacker).has("set_frost"):
+			_apply_frost(attacker, target_id)
 
 	if target != null and target.is_alive and SetBonus.count_sets(target).has("set_thorns"):
 		_apply_thorns(attacker_id, target)
@@ -76,4 +83,16 @@ func _apply_executioner(attacker: UnitInstance, target_id: int) -> void:
 			var spec: Dictionary = EXECUTIONER[tier]
 			if t.current_hp <= int(spec["thr"]):
 				_battle_resolution.apply_reaction_damage(target_id, int(spec["dmg"]))
+			return
+
+# 寒霜：命中给非免疫敌方按最高激活档施寒霜状态（滞步/冰封/冻结）；不造成伤害。
+func _apply_frost(attacker: UnitInstance, target_id: int) -> void:
+	var t := _turn_manager.get_unit(target_id)
+	if t == null or not t.is_alive or t.current_hp <= 0:
+		return
+	if _battle_resolution.get_unit_status(target_id, BattleResolution.STATUS_FROST_IMMUNE):
+		return
+	for tier in [9, 6, 3]:
+		if SetBonus.is_tier_active(attacker, "set_frost", tier):
+			_battle_resolution.apply_status(target_id, FROST_STATUS_BY_TIER[tier])
 			return
