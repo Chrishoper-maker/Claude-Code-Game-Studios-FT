@@ -20,6 +20,8 @@ func _ready() -> void:
 			_notice_then(_show_recruit_offers)
 		"CHARTING":
 			_show_route_offers()
+		"EQUIPPING":
+			_show_battle_equip()
 		"RUN_END":
 			_notice_then(_show_run_end)
 		_:
@@ -280,13 +282,91 @@ func _on_restart_pressed() -> void:
 	RunManager.start_run()
 	_show_route_offers()
 
-# 纸娃娃（Task 8 完整实现；此处临时最小版，Task 8 覆盖）。
+# 战后补装屏：取 pending 第一名未完成船员，渲染 8 候选 + 纸娃娃。
+func _show_battle_equip() -> void:
+	var pending := RunManager.get_pending_battle_equip()
+	if pending.is_empty():
+		_notice_then(_show_recruit_offers)   # 兜底（无候选）
+		return
+	var crew_id := ""
+	for k in pending:
+		crew_id = str(k)
+		break
+	_clear_ui()
+	_active_screen = "battle_equip"
+	var picked: Array[String] = []     # 本船员已选 eid
+	var row := HBoxContainer.new()
+	add_child(row)
+	row.set_anchors_preset(Control.PRESET_CENTER)
+	# 左：候选
+	var left := VBoxContainer.new()
+	row.add_child(left)
+	var crew_def := UnitDataManager.get_unit(crew_id)
+	var title := Label.new()
+	title.text = "为 %s 选至多 %d 件（已选 0/%d）" % [
+		(crew_def as CrewDefinition).display_name if crew_def is CrewDefinition else crew_id,
+		RunManager.BATTLE_PICK, RunManager.BATTLE_PICK]
+	left.add_child(title)
+	var doll_holder := VBoxContainer.new()
+	for eid in (pending[crew_id] as Array):
+		var eq := EquipmentDataManager.get_equipment(str(eid))
+		if eq == null:
+			continue
+		var b := Button.new()
+		b.text = _equipment_summary(eq) + "〔%s〕" % eq.set_id
+		b.add_theme_color_override("font_color", EquipmentDefinition.rarity_color(eq.rarity))
+		b.pressed.connect(func() -> void:
+			if picked.size() >= RunManager.BATTLE_PICK:
+				return
+			var occupied := RunManager.get_equipment_for(crew_id).has(eq.slot)
+			# 占槽则替换（白盒直接替换；正式版可加确认）。
+			RunManager.equip_piece(crew_id, eq.id, occupied)
+			picked.append(eq.id)
+			b.disabled = true
+			title.text = "为 %s 选至多 %d 件（已选 %d/%d）" % [
+				(crew_def as CrewDefinition).display_name if crew_def is CrewDefinition else crew_id,
+				RunManager.BATTLE_PICK, picked.size(), RunManager.BATTLE_PICK]
+			_refresh_paperdoll(doll_holder, crew_id)
+		)
+		left.add_child(b)
+	var done := Button.new()
+	done.text = "完成"
+	done.pressed.connect(func() -> void:
+		RunManager.finish_crew_equip(crew_id)
+		_clear_ui()
+		if RunManager.current_phase == "EQUIPPING":
+			_show_battle_equip()        # 下一名
+		else:
+			_notice_then(_show_recruit_offers)
+	)
+	left.add_child(done)
+	# 右：纸娃娃
+	row.add_child(doll_holder)
+	_refresh_paperdoll(doll_holder, crew_id)
+
+## 刷新纸娃娃容器：清旧子节点后重建。
+func _refresh_paperdoll(holder: VBoxContainer, crew_id: String) -> void:
+	for ch in holder.get_children():
+		ch.queue_free()
+	holder.add_child(_build_paperdoll(crew_id))
+
+## 人形纸娃娃：9 槽逐行（部件名 + 装备名彩色 + 套装标签）+ 顶部激活套装档位。
 func _build_paperdoll(crew_id: String) -> Control:
 	var v := VBoxContainer.new()
+	var counts := RunManager.get_set_counts(crew_id)
+	for sid in counts:
+		var tier := RunManager.get_active_set_tier(crew_id, str(sid))
+		var head := Label.new()
+		head.text = "%s %d/9%s" % [str(sid), int(counts[sid]), "（已激活 %d）" % tier if tier > 0 else ""]
+		v.add_child(head)
 	var eq := RunManager.get_equipment_for(crew_id)
 	for slot in range(9):
 		var l := Label.new()
 		var def: EquipmentDefinition = eq.get(slot, null)
-		l.text = "%s：%s" % [_SLOT_NOUNS[slot], def.display_name if def != null else "空"]
+		if def != null:
+			l.text = "%s：%s〔%s〕" % [_SLOT_NOUNS[slot], def.display_name, def.set_id]
+			l.add_theme_color_override("font_color", EquipmentDefinition.rarity_color(def.rarity))
+		else:
+			l.text = "%s：空" % _SLOT_NOUNS[slot]
 		v.add_child(l)
 	return v
