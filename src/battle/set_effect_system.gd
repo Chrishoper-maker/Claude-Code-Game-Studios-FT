@@ -29,6 +29,7 @@ func on_round_started(_round_count: int) -> void:
 		for sid in SetBonus.count_sets(unit):
 			match sid:
 				"set_ironwall": _apply_ironwall(uid, unit)
+				"set_berserker": _apply_berserker(uid, unit)
 				_: pass
 
 # 铁壁：3=GUARDED（升级轴），9=SET_GUARD（取代 GUARDED）；6=+3自愈（新增轴）。
@@ -39,6 +40,15 @@ func _apply_ironwall(uid: int, unit: UnitInstance) -> void:
 		_battle_resolution.apply_status(uid, BattleResolution.STATUS_GUARDED)
 	if SetBonus.is_tier_active(unit, "set_ironwall", 6):
 		_battle_resolution.execute_burst_heal(uid, IRONWALL_HEAL)
+
+# 狂战：升级轴取最高——9=持续狂热 / 6=狂热 / 3=光环。
+func _apply_berserker(uid: int, unit: UnitInstance) -> void:
+	if SetBonus.is_tier_active(unit, "set_berserker", 9):
+		_battle_resolution.apply_status(uid, BattleResolution.STATUS_FRENZY_PERSIST)
+	elif SetBonus.is_tier_active(unit, "set_berserker", 6):
+		_battle_resolution.apply_status(uid, BattleResolution.STATUS_FRENZY)
+	elif SetBonus.is_tier_active(unit, "set_berserker", 3):
+		_battle_resolution.apply_status(uid, BattleResolution.STATUS_AURA)
 
 # 全体存活 battle_id（两阵营）。
 func _all_alive_ids() -> Array[int]:
