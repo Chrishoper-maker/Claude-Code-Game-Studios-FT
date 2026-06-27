@@ -48,3 +48,12 @@ func test_missing_definition_dropped() -> void:
 	rm._roster_equipment = {}
 	rm.load_from_save_dict(d)
 	assert_bool(rm._roster_equipment.has(crew_id)).is_false()
+
+func test_pending_battle_equip_roundtrips() -> void:
+	RunManager._autosave_enabled = false
+	RunManager._roster_equipment.clear()
+	RunManager._pending_battle_equip = {"c1": ["eq_ironwall_head", "eq_ironwall_armor"]}
+	var d := RunManager.to_save_dict()
+	RunManager._pending_battle_equip.clear()
+	RunManager.load_from_save_dict(d)
+	assert_bool(RunManager.get_pending_battle_equip().has("c1")).is_true()

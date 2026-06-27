@@ -395,7 +395,19 @@ func _on_battle_won() -> void:
 		_unlocked_this_run = MetaProgress.unlock_next()   # 悬赏成长：通关解锁下一名 unlockable（含存盘）；记录供 run-end 展示
 		_goto_route.call()
 		return
-	_set_run_phase(RunPhase.RUN_RECRUITING)      # 发 run_phase_changed("RECRUITING")
+	# 非末岛：为本场出战且存活（仍在 roster）的船员滚战后候选。
+	_pending_battle_equip.clear()
+	var roster_ids: Dictionary = {}
+	for c in roster:
+		roster_ids[c.id] = true
+	for c in pending_deploy:
+		if roster_ids.has(c.id):
+			_pending_battle_equip[c.id] = roll_battle_equipment(c.id)
+	if not _pending_battle_equip.is_empty():
+		_set_run_phase(RunPhase.RUN_EQUIPPING)
+		_goto_route.call()
+		return
+	_set_run_phase(RunPhase.RUN_RECRUITING)
 	_goto_route.call()
 
 # 战斗失败 → run 终局（全员阵亡）。切回 RouteScene 显示 run-end。
@@ -504,6 +516,7 @@ func to_save_dict() -> Dictionary:
 		"chosen_map_id": _chosen_map_id,
 		"visited_map_ids": _visited_map_ids.duplicate(),
 		"last_route_offers": _last_route_offers.duplicate(),
+		"pending_battle_equip": _pending_battle_equip.duplicate(true),
 	}
 
 # 反序列化恢复（直接赋 _phase，不发信号）。缺失 crew id 防御性跳过。
@@ -556,6 +569,20 @@ func load_from_save_dict(d: Dictionary) -> void:
 					slots[edef.slot] = eid
 			if not slots.is_empty():
 				_roster_equipment[cid] = slots
+	# 战后候选恢复：eid 必须存在（_on_battle_won 已保证仅存活 roster 成员入列，无需再过滤）。
+	_pending_battle_equip.clear()
+	var pbe: Variant = d.get("pending_battle_equip", {})
+	if pbe is Dictionary:
+		for k in (pbe as Dictionary):
+			var cid := str(k)
+			var raw: Variant = (pbe as Dictionary)[k]
+			var eids: Array[String] = []
+			if raw is Array:
+				for e in (raw as Array):
+					if EquipmentDataManager.get_equipment(str(e)) != null:
+						eids.append(str(e))
+			if not eids.is_empty():
+				_pending_battle_equip[cid] = eids
 
 func _to_string_array(v: Variant) -> Array[String]:
 	var out: Array[String] = []
