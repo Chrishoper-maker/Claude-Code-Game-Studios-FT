@@ -15,6 +15,7 @@ var _btn_move: Button
 var _btn_attack: Button
 var _btn_verb: Button
 var _btn_burst: Button
+var _btn_end_unit: Button
 var _btn_end: Button
 
 ## 顶部固定信息条。
@@ -92,7 +93,8 @@ func _build_ui() -> void:
 	_btn_attack = _make_button("攻击", func() -> void: _controller.set_mode(PlayerTurnController.Mode.ATTACK))
 	_btn_verb = _make_button("技能", func() -> void: _controller.do_verb(); refresh())
 	_btn_burst = _make_button("爆发", func() -> void: _controller.begin_burst_targeting())
-	for b in [_btn_move, _btn_attack, _btn_verb, _btn_burst]:
+	_btn_end_unit = _make_button("结束", func() -> void: _controller.end_unit_turn(); refresh())
+	for b in [_btn_move, _btn_attack, _btn_verb, _btn_burst, _btn_end_unit]:
 		act_box.add_child(b)
 	_action_panel.visible = false
 
@@ -117,6 +119,7 @@ func refresh() -> void:
 	_btn_burst.disabled = not actions["burst"]
 	_btn_burst.modulate = Color("#FFCC00") if actions["burst"] else Color.WHITE
 	_btn_end.disabled = not _controller.is_phase_active()
+	_btn_end_unit.disabled = not _controller.is_active()
 	_gauge_label.text = "羁绊槽: %s" % ("满!" if actions["burst"] else "充能中")
 	if _controller.is_active():
 		var u: UnitInstance = _turn_manager.get_unit(_controller.get_current_unit_id())
