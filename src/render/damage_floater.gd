@@ -14,6 +14,9 @@ var _faction_lookup: Callable
 static func damage_color(faction: String) -> Color:
 	return Color("#FF8800") if faction == "crew" else Color("#FF2222")
 
+static func frost_text(status: StringName) -> String:
+	return UnitView.FROST_LABEL.get(status, "") + "!"
+
 func setup(unit_renderer: UnitRenderer, faction_lookup: Callable) -> void:
 	_unit_renderer = unit_renderer
 	_faction_lookup = faction_lookup
@@ -25,6 +28,10 @@ func setup(unit_renderer: UnitRenderer, faction_lookup: Callable) -> void:
 		EventBus.heal_executed.connect(_on_heal)
 	if not EventBus.unit_downed.is_connected(_on_downed):
 		EventBus.unit_downed.connect(_on_downed)
+	if not EventBus.frost_applied.is_connected(_on_frost_applied):
+		EventBus.frost_applied.connect(_on_frost_applied)
+	if not EventBus.frost_resolved.is_connected(_on_frost_resolved):
+		EventBus.frost_resolved.connect(_on_frost_resolved)
 
 func _on_damage(target_id: int, final_damage: int, _new_hp: int) -> void:
 	var faction: String = _faction_lookup.call(target_id) if _faction_lookup.is_valid() else "enemy"
@@ -35,6 +42,15 @@ func _on_heal(target_id: int, amount: int) -> void:
 
 func _on_downed(unit_id: int) -> void:
 	_spawn(unit_id, "KO", Color("#FF3333"), 96, KO_DURATION, true)
+
+# 施加寒霜 → 弹对应飘字（滞步!/冰封!/冻结!）。
+func _on_frost_applied(unit_id: int, status: StringName) -> void:
+	_spawn(unit_id, frost_text(status), UnitView.FROST_TINT, 36, FLOAT_DURATION, false)
+
+# 冻结被结算跳过 → 弹「冻结·跳过」；root/slow 仅清标记不弹（避免刷屏）。
+func _on_frost_resolved(unit_id: int, consumed: StringName) -> void:
+	if consumed == BattleResolution.STATUS_FROST_FREEZE:
+		_spawn(unit_id, "冻结·跳过", UnitView.FROST_TINT, 36, FLOAT_DURATION, false)
 
 func _spawn(unit_id: int, text: String, color: Color, font_size: int, duration: float, punch: bool) -> void:
 	if _unit_renderer == null:
