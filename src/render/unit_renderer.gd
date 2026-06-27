@@ -13,9 +13,26 @@ func _ready() -> void:
 		EventBus.unit_downed.connect(_on_unit_downed)
 	if not EventBus.damage_dealt.is_connected(_on_hp_changed):
 		EventBus.damage_dealt.connect(_on_hp_changed)
+	if not EventBus.unit_turn_ended.is_connected(_on_unit_turn_ended):
+		EventBus.unit_turn_ended.connect(_on_unit_turn_ended)   # 该单位本回合结束 → 变灰
+	if not EventBus.player_phase_started.is_connected(_on_player_phase_started):
+		EventBus.player_phase_started.connect(_on_player_phase_started)  # 新我方回合 → 解除全部变灰
 
 func set_unit_max_hp(battle_id: int, max_hp: int) -> void:
 	_max_hp[battle_id] = max_hp
+
+# 设/解某单位的"已结束变灰"（end-unit-turn）。
+func set_unit_dimmed(battle_id: int, enabled: bool) -> void:
+	var v: UnitView = _views.get(battle_id, null)
+	if v != null:
+		v.set_dimmed(enabled)
+
+func _on_unit_turn_ended(unit_id: int) -> void:
+	set_unit_dimmed(unit_id, true)
+
+func _on_player_phase_started() -> void:
+	for id in _views:
+		(_views[id] as UnitView).set_dimmed(false)
 
 func _on_hp_changed(target_id: int, _final_damage: int, new_hp: int) -> void:
 	var v: UnitView = _views.get(target_id, null)
