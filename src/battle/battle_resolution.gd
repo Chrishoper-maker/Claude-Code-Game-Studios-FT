@@ -138,6 +138,18 @@ func resolve_unit_downed(unit_id: int) -> void:
 	_unit_statuses.erase(unit_id)              # 6
 	EventBus.unit_downed.emit(unit_id)         # 7
 
+# 反应伤害入口（②b-2b 荆棘反伤/处决斩杀）：扣 hp、emit damage_dealt、致死走 downed。
+# 绝不 emit attack_executed（防再次触发套装反应/羁绊充能；同 execute_burst_* 先例）。
+func apply_reaction_damage(target_id: int, amount: int) -> void:
+	var t := _turn_manager.get_unit(target_id)
+	if t == null or not t.is_alive:
+		return
+	var new_hp := maxi(0, t.current_hp - amount)
+	t.current_hp = new_hp
+	EventBus.damage_dealt.emit(target_id, amount, new_hp)
+	if new_hp == 0:
+		resolve_unit_downed(target_id)
+
 # ── 六动词（Rule 3-8）──
 const _DIRS_4: Array[Vector2i] = [Vector2i(0, -1), Vector2i(0, 1), Vector2i(-1, 0), Vector2i(1, 0)]  # 上下左右
 
