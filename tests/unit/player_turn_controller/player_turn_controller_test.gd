@@ -319,3 +319,31 @@ func test_ended_unit_reselect_has_no_actions() -> void:
 	assert_bool(actions["move"]).is_false()
 	assert_bool(actions["attack"]).is_false()
 	assert_bool(actions["verb"]).is_false()
+
+# burst 是阵营级羁绊资源（受羁绊槽门控），与单位是否「结束」无关：
+# 槽满时重新选中已结束单位，浮窗「爆发」仍可用——它不消耗该单位行动点，
+# 而是另选 lead/partner 触发（begin_burst_targeting 不读 _selected_unit_id）。
+func test_ended_unit_reselect_burst_stays_available_when_gauge_full() -> void:
+	var ctx := _make_controller()
+	var crew := _register(ctx.tm, ctx.gb, _make_def("crew", "swordsman", 3, 3, 10, "slash"), Vector2i(3, 7))
+	_register(ctx.tm, ctx.gb, _make_def("crew", "bulwark", 2, 2, 12, "guard"), Vector2i(3, 6))
+	_fill_gauge(ctx.bb)
+	_begin_select(ctx, crew)
+	ctx.ctrl.end_unit_turn()
+	ctx.ctrl.select_unit(crew)
+	var actions: Dictionary = ctx.ctrl.get_available_actions()
+	assert_bool(actions["move"]).is_false()
+	assert_bool(actions["attack"]).is_false()
+	assert_bool(actions["verb"]).is_false()
+	assert_bool(actions["burst"]).is_true()   # 阵营级资源，独立于 end-unit
+
+# 非我方回合（_phase_active=false）调 end_unit_turn 不发信号（守卫的另一半）。
+func test_end_unit_turn_noop_outside_player_phase() -> void:
+	var ctx := _make_controller()
+	var crew := _register(ctx.tm, ctx.gb, _make_def("crew", "swordsman", 3, 3, 10, "slash"), Vector2i(3, 7))
+	ctx.ctrl._on_enemy_phase_started()   # 敌方回合：_phase_active=false
+	var spy := [0]
+	EventBus.unit_turn_ended.connect(func(_id: int) -> void: spy[0] += 1)
+	ctx.ctrl.select_unit(crew)            # 敌方回合选不中（is_active=false）
+	ctx.ctrl.end_unit_turn()
+	assert_int(spy[0]).is_equal(0)
