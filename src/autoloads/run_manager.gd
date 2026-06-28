@@ -245,8 +245,8 @@ func _owned_slots(crew_id: String) -> Dictionary:
 			out[int(s)] = true
 	return out
 
-## 战后滚 8 件：每件独立 80% 偏向主套（优先未拥有空槽件），否则随机。
-func roll_battle_equipment(crew_id: String) -> Array[String]:
+## 战后滚 8 件：每件独立 80% 偏向主套（优先未拥有空槽件），否则按通关图 island_tier 加权稀有度。
+func roll_battle_equipment(crew_id: String, island_tier: int = 1) -> Array[String]:
 	var out: Array[String] = []
 	var all := EquipmentDataManager.get_all_equipment()
 	if all.is_empty():
@@ -268,9 +268,16 @@ func roll_battle_equipment(crew_id: String) -> Array[String]:
 			if not src.is_empty():
 				pick = src[_rng.randi_range(0, src.size() - 1)]
 		if pick == null:
-			pick = all[_rng.randi_range(0, all.size() - 1)]
+			pick = LootRarity.weighted_pick(all, island_tier, _rng)
+			if pick == null:
+				pick = all[_rng.randi_range(0, all.size() - 1)]
 		out.append(pick.id)
 	return out
+
+# 刚通关地图的 island_tier（战利品加权用）；缺图/未选图 → 1。
+func _cleared_island_tier() -> int:
+	var m := MapDataManager.get_map(_chosen_map_id)
+	return (m as MapDefinition).island_tier if m != null else 1
 
 ## 装上一件：空槽直接装；已占槽需 replace=true 才覆盖（丢弃旧件）。返回是否装上。
 func equip_piece(crew_id: String, eid: String, replace: bool) -> bool:
@@ -404,7 +411,7 @@ func _on_battle_won() -> void:
 		roster_ids[c.id] = true
 	for c in pending_deploy:
 		if roster_ids.has(c.id):
-			_pending_battle_equip[c.id] = roll_battle_equipment(c.id)
+			_pending_battle_equip[c.id] = roll_battle_equipment(c.id, _cleared_island_tier())
 	if not _pending_battle_equip.is_empty():
 		_set_run_phase(RunPhase.RUN_EQUIPPING)
 		_goto_route.call()
