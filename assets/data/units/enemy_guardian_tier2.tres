@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="EnemyDefinition" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://src/data/enemy_definition.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "enemy_guardian_tier2"
+display_name = "守卫兵·精锐"
+faction = "enemy"
+unit_class = "bulwark"
+max_hp = 12
+move_range = 1
+attack_range = 1
+base_damage = 3
+class_action_id = ""
+behavior_type = "GUARDIAN"
+home_pos = Vector2i(-1, -1)
+threat_tier = 2
