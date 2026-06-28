@@ -55,13 +55,13 @@ func test_offers_deterministic_for_same_seed() -> void:
 	for i in range(a.size()):
 		assert_str((a[i] as MapDefinition).map_id).is_equal((b[i] as MapDefinition).map_id)
 
-# 目标 tier 映射表（纯函数）。
+# 目标 tier 映射表（纯函数）— 后两岛爬升到深层 5/6（史诗②）。
 func test_target_tiers_mapping() -> void:
 	assert_array(RunManager._target_tiers_for_island(0)).is_equal([1])
 	assert_array(RunManager._target_tiers_for_island(1)).is_equal([1, 2])
-	assert_array(RunManager._target_tiers_for_island(2)).is_equal([1, 2])
-	assert_array(RunManager._target_tiers_for_island(3)).is_equal([2, 3])
-	assert_array(RunManager._target_tiers_for_island(4)).is_equal([3])
+	assert_array(RunManager._target_tiers_for_island(2)).is_equal([2, 3])
+	assert_array(RunManager._target_tiers_for_island(3)).is_equal([3, 5])
+	assert_array(RunManager._target_tiers_for_island(4)).is_equal([5, 6])
 
 # confirm_route：记所选图 + 标记 visited + 转 DEPLOYING。
 func test_confirm_route_records_and_advances() -> void:
