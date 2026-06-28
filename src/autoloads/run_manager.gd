@@ -295,12 +295,14 @@ func get_pending_battle_equip() -> Dictionary:
 	return _pending_battle_equip.duplicate(true)
 
 # 即将抵达岛号 → 目标 island_tier 集合（可调）。next_idx = current_island_index + 1。
+# 后两岛爬升到深层 5/6（史诗②深渊扩展）；深层图不足时 get_route_offers 降级兜底。
 func _target_tiers_for_island(next_idx: int) -> Array[int]:
 	match next_idx:
 		0: return [1]
-		1, 2: return [1, 2]
-		3: return [2, 3]
-		_: return [3]   # 4 及之后（末岛）
+		1: return [1, 2]
+		2: return [2, 3]
+		3: return [3, 5]
+		_: return [5, 6]   # 4 及之后（末岛）→ 深渊
 
 # 三张选航候选：按"即将抵达岛"的目标 tier 抽 ≤ROUTE_OFFER_COUNT 张未访问地图；
 # 不足则放宽 tier（全体未访问），再不足则放宽 visited（全体）。确定性（_rng + map_id 排序）。

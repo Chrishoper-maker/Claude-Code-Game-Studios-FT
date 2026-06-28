@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="EnemyDefinition" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://src/data/enemy_definition.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "enemy_ranged_tier3"
+display_name = "炮击兵·将官"
+faction = "enemy"
+unit_class = "gunner"
+max_hp = 11
+move_range = 2
+attack_range = 3
+base_damage = 5
+class_action_id = ""
+behavior_type = "RANGED"
+home_pos = Vector2i(-1, -1)
+threat_tier = 3
