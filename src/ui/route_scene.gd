@@ -200,7 +200,7 @@ func _show_route_offers() -> void:
 	for m in offers:
 		var map_def := m as MapDefinition
 		var btn := Button.new()
-		btn.text = "%s · 难度%d · %s" % [map_def.display_name, map_def.island_tier, _enemy_summary(map_def)]
+		btn.text = "%s · 难度%d · %s · 战利品：%s" % [map_def.display_name, map_def.island_tier, _enemy_summary(map_def), LootRarity.loot_band_label(map_def.island_tier)]
 		btn.pressed.connect(_on_route_chosen.bind(map_def.map_id))
 		box.add_child(btn)
 
